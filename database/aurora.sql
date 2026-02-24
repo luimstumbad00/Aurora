@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict G07A1h0y6caFtKDGlm7LocTiYmWPRchaonAe242qe0YzE8lKOeiEbRbS0Y38lM5
+\restrict Sjwz2FENIGGUXGbUWywinesbfVGpqY5lkGrvr7Fw29ed5WuFBAJOIyq5GkY6GYA
 
 -- Dumped from database version 16.11 (Ubuntu 16.11-0ubuntu0.24.04.1)
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-0ubuntu0.24.04.1)
@@ -78,19 +78,28 @@ CREATE TABLE public.usuario (
     nombre public.nombre_mex NOT NULL,
     direccion public.direccion_mex NOT NULL,
     sexo character varying(10),
-    edad integer,
     tipo_personal character varying(15),
     rol public.rol_enum NOT NULL,
     fecha_registro timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     estado character varying(8),
     correo character varying(100) NOT NULL,
     contrasena character varying(255) NOT NULL,
+    nacimiento date,
     CONSTRAINT usuario_sexo_check CHECK (((sexo)::text = ANY ((ARRAY['Masculino'::character varying, 'Femenino'::character varying, 'Otro'::character varying])::text[]))),
     CONSTRAINT usuario_tipo_personal_check CHECK (((tipo_personal)::text = ANY ((ARRAY['Empleado'::character varying, 'Voluntario'::character varying])::text[])))
 );
 
 
 ALTER TABLE public.usuario OWNER TO postgres;
+
+--
+-- Data for Name: usuario; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.usuario (curp, rfc, nombre, direccion, sexo, tipo_personal, rol, fecha_registro, estado, correo, contrasena, nacimiento) FROM stdin;
+AUTL061220HMCGRSA5	AUTL061220LKA	(AGUILAR,TORRES,LUIS)	(kmmm,90,,67890,"GUSTAVO A. MADERO",Nayarit)	Masculino	Empleado	Director	2026-02-23 20:04:12.940229	Activo	luis@aurora.com	123456	2026-02-03
+\.
+
 
 --
 -- Name: usuario usuario_correo_key; Type: CONSTRAINT; Schema: public; Owner: postgres
@@ -120,5 +129,5 @@ ALTER TABLE ONLY public.usuario
 -- PostgreSQL database dump complete
 --
 
-\unrestrict G07A1h0y6caFtKDGlm7LocTiYmWPRchaonAe242qe0YzE8lKOeiEbRbS0Y38lM5
+\unrestrict Sjwz2FENIGGUXGbUWywinesbfVGpqY5lkGrvr7Fw29ed5WuFBAJOIyq5GkY6GYA
 
