@@ -1,46 +1,84 @@
 <?php
 session_start();
+require("../config/database.php");
 
-if (!isset($_SESSION['usuario'])) {
-    header("Location: login.php");
-    exit();
-}
+// Simulación: normalmente esto viene del login
+$curp = $_SESSION['curp']; // ejemplo: AUTL061220HMCGRSA5
 
-date_default_timezone_set("America/Mexico_City");
+$query = "
+SELECT 
+    (nombre).nombres AS nombres,
+    (nombre).apellido_paterno AS ap_paterno,
+    (nombre).apellido_materno AS ap_materno,
+    rol
+FROM usuario
+WHERE curp = $1
+";
 
+$result = pg_query_params($conn, $query, array($curp));
+$usuario = pg_fetch_assoc($result);
+
+$nombreCompleto = $usuario['nombres'] . " " . 
+                  $usuario['ap_paterno'] . " " . 
+                  $usuario['ap_materno'];
+
+$rol = $usuario['rol'];
+
+// Saludo dinámico
 $hora = date("H");
 
-if ($hora < 12) {
+if ($hora >= 6 && $hora < 12) {
     $saludo = "Buenos días";
-} elseif ($hora < 19) {
+} elseif ($hora >= 12 && $hora < 19) {
     $saludo = "Buenas tardes";
 } else {
     $saludo = "Buenas noches";
 }
-
-$usuario = $_SESSION['usuario'];
-
-// Extraer nombre del tipo compuesto
-$nombre = $usuario['nombre'];
-$nombre = trim($nombre, '()');
-$partes = explode(',', $nombre);
-
-$nombres = $partes[2]; // campo nombres
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>Dashboard</title>
+    <title>Panel Principal</title>
+    <style>
+        body { font-family: Arial; margin: 0; background: #f4f6f9; }
+        header { background: #2c3e50; color: white; padding: 20px; }
+        nav { background: #34495e; padding: 10px; }
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin-right: 15px;
+            font-weight: bold;
+        }
+        .contenido { padding: 30px; }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0px 2px 6px rgba(0,0,0,0.1);
+        }
+    </style>
 </head>
 <body>
 
-<h1><?php echo $saludo . ", " . $nombres; ?> 👋</h1>
+<header>
+    <h2><?php echo $saludo; ?></h2>
+    <p><strong>Nombre:</strong> <?php echo $nombreCompleto; ?></p>
+    <p><strong>Rol:</strong> <?php echo $rol; ?></p>
+</header>
 
-<p>Bienvenido al sistema Aurora.</p>
+<nav>
+    <a href="ver_usuarios.php">Ver todos los usuarios</a>
+    <a href="agregar_usuario.php">Agregar nuevo usuario</a>
+    <a href="logout.php">Cerrar sesión</a>
+</nav>
 
-<a href="logout.php">Cerrar sesión</a>
+<div class="contenido">
+    <div class="card">
+        <h3>Panel de Control</h3>
+        <p>Bienvenido al sistema.</p>
+    </div>
+</div>
 
 </body>
 </html>
