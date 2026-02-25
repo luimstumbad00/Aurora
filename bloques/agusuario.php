@@ -1,4 +1,19 @@
 <?php
+session_start();
+
+// 1. Validar que el usuario haya iniciado sesión
+if (!isset($_SESSION['usuario'])) {
+    header("Location: ../index.php"); 
+    exit();
+}
+
+// 2. Validar que solo el Director o Coordinador puedan registrar
+$rolActual = $_SESSION['usuario']['rol'];
+if ($rolActual !== 'Director' && $rolActual !== 'Coordinador') {
+    header("Location: dashboard.php?error=acceso_denegado");
+    exit();
+}
+
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
@@ -7,29 +22,40 @@ require '../config/database.php';
 $mensaje = "";
 $tipoMensaje = "";
 
+// PRG: Atrapamos el éxito si venimos de recargar la página
+if (isset($_GET['status']) && $_GET['status'] == 'success') {
+    $mensaje = "Usuario creado correctamente ✅";
+    $tipoMensaje = "success";
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
-    $curp = $_POST['curp'];
-    $rfc = $_POST['rfc'];
-    $apellido_p = $_POST['apellido_p'];
-    $apellido_m = $_POST['apellido_m'];
-    $nombres = $_POST['nombres'];
+    // Convertimos a MAYÚSCULAS todos los campos de texto
+    $curp = strtoupper(trim($_POST['curp']));
+    $rfc = strtoupper(trim($_POST['rfc']));
+    $apellido_p = strtoupper(trim($_POST['apellido_p']));
+    $apellido_m = strtoupper(trim($_POST['apellido_m']));
+    $nombres = strtoupper(trim($_POST['nombres']));
 
-    $calle = $_POST['calle'];
-    $num_ext = $_POST['num_ext'];
-    $num_int = $_POST['num_int'] ?: null;
-    $cp = $_POST['cp'];
-    $municipio = $_POST['municipio'];
+    $calle = strtoupper(trim($_POST['calle']));
+    $num_ext = strtoupper(trim($_POST['num_ext']));
+    $num_int = !empty($_POST['num_int']) ? strtoupper(trim($_POST['num_int'])) : null;
+    $cp = trim($_POST['cp']); 
+    $municipio = strtoupper(trim($_POST['municipio']));
+    
+    // Estos los dejamos con su formato original porque la BD tiene validaciones estrictas (CHECK/ENUM)
     $estado_dir = $_POST['estado_dir'];
-
     $sexo = $_POST['sexo'];
-    $nacimiento = $_POST['nacimiento'];
     $tipo_personal = $_POST['tipo_personal'];
-    $rol = $_POST['rol'] ?: null;
-    $correo = $_POST['correo'];
+    $rol = !empty($_POST['rol']) ? $_POST['rol'] : null;
+    $nacimiento = $_POST['nacimiento'];
+    
+    // El correo es una buena práctica guardarlo siempre en minúsculas
+    $correo = strtolower(trim($_POST['correo']));
 
-    $contrasena = $curp;
+    $contrasena = $curp; // La contraseña temporal será su CURP (ya en mayúsculas)
 
+    // Agregamos ::nombre_mex, ::direccion_mex y ::rol_enum como en la pantalla de modificación
     $query = "
         INSERT INTO usuario (
             curp, rfc, nombre, direccion,
@@ -37,10 +63,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             rol, estado, correo, contrasena
         ) VALUES (
             $1, $2,
-            ROW($3,$4,$5),
-            ROW($6,$7,$8,$9,$10,$11),
+            ROW($3,$4,$5)::nombre_mex,
+            ROW($6,$7,$8,$9,$10,$11)::direccion_mex,
             $12, $13, $14,
-            $15, 'Activo', $16, $17
+            $15::rol_enum, 'Activo', $16, $17
         )
     ";
 
@@ -53,124 +79,159 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     ));
 
     if ($result) {
-        $mensaje = "Usuario creado correctamente ✅";
-        $tipoMensaje = "success";
+        // Redirigimos para limpiar el POST y que no se duplique al recargar la página (F5)
+        header("Location: " . $_SERVER['PHP_SELF'] . "?status=success");
+        exit();
     } else {
+        // Manejo detallado de errores
         $error = pg_last_error($conn);
 
         if (strpos($error, 'usuario_pkey') !== false) {
             $mensaje = "La CURP ya está registrada ⚠️";
+        } elseif (strpos($error, 'usuario_rfc_key') !== false) {
+            $mensaje = "El RFC ya está registrado ⚠️";
         } elseif (strpos($error, 'usuario_correo_key') !== false) {
-            $mensaje = "El correo ya está registrado ⚠️";
+            $mensaje = "El correo electrónico ya está registrado ⚠️";
         } else {
             $mensaje = "Error al crear usuario ❌";
         }
-
         $tipoMensaje = "error";
     }
 }
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
 <meta charset="UTF-8">
 <title>Registrar Usuario</title>
 <link rel="stylesheet" href="../css/style.css">
+<style>
+    .btn-regresar {
+        display: inline-block;
+        margin-bottom: 20px;
+        padding: 10px 15px;
+        background-color: #34495e;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-family: Arial, sans-serif;
+        transition: background-color 0.3s;
+    }
+    .btn-regresar:hover {
+        background-color: #2c3e50;
+    }
+    label {
+        display: block;
+        text-align: left;
+        margin-top: 15px;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #2c3e50;
+        font-size: 14px;
+    }
+    /* Forzamos a que todo lo que se escriba en los inputs de texto se vea en MAYÚSCULAS automáticamente */
+    input[type="text"] {
+        text-transform: uppercase;
+    }
+</style>
 </head>
 <body>
 
 <div class="login-container">
 
-<h1>Registrar Usuario</h1>
+    <div style="text-align: left;">
+        <a href="dashboard.php" class="btn-regresar">⬅ Regresar al Dashboard</a>
+    </div>
 
-<?php if ($mensaje): ?>
-<p style="color: <?php echo $tipoMensaje == 'success' ? 'green' : 'red'; ?>;">
-    <?php echo $mensaje; ?>
-</p>
-<?php endif; ?>
+    <h1>Registrar Usuario</h1>
 
-<form method="POST">
+    <?php if ($mensaje): ?>
+    <p style="color: <?php echo $tipoMensaje == 'success' ? 'green' : 'red'; ?>; font-weight: bold; background-color: <?php echo $tipoMensaje == 'success' ? '#d4edda' : '#f8d7da'; ?>; padding: 10px; border-radius: 5px;">
+        <?php echo $mensaje; ?>
+    </p>
+    <?php endif; ?>
 
-<input type="text" name="curp" placeholder="CURP" required maxlength="18">
-<input type="text" name="rfc" placeholder="RFC" required maxlength="13">
+    <form method="POST">
+        <label for="curp">CURP:</label>
+        <input type="text" id="curp" name="curp" placeholder="Ej. ABCD123456EFGHIJ78" value="<?= htmlspecialchars($_POST['curp'] ?? '') ?>" required maxlength="18">
+        
+        <label for="rfc">RFC:</label>
+        <input type="text" id="rfc" name="rfc" placeholder="Ej. ABCD123456789" value="<?= htmlspecialchars($_POST['rfc'] ?? '') ?>" required maxlength="13">
 
-<input type="text" name="apellido_p" placeholder="Apellido Paterno" required>
-<input type="text" name="apellido_m" placeholder="Apellido Materno" required>
-<input type="text" name="nombres" placeholder="Nombres" required>
+        <label for="apellido_p">Apellido Paterno:</label>
+        <input type="text" id="apellido_p" name="apellido_p" value="<?= htmlspecialchars($_POST['apellido_p'] ?? '') ?>" required>
+        
+        <label for="apellido_m">Apellido Materno:</label>
+        <input type="text" id="apellido_m" name="apellido_m" value="<?= htmlspecialchars($_POST['apellido_m'] ?? '') ?>" required>
+        
+        <label for="nombres">Nombres:</label>
+        <input type="text" id="nombres" name="nombres" value="<?= htmlspecialchars($_POST['nombres'] ?? '') ?>" required>
 
-<select name="sexo" required>
-<option value=""disabled selected hidden>Sexo</option>
-<option value="Masculino">Masculino</option>
-<option value="Femenino">Femenino</option>
-<option value="Otro">Otro</option>
-</select>
+        <label for="sexo">Sexo:</label>
+        <select id="sexo" name="sexo" required>
+            <option value="" disabled selected hidden>SELECCIONE SEXO</option>
+            <option value="Masculino" <?= (($_POST['sexo'] ?? '') == 'Masculino') ? 'selected' : '' ?>>MASCULINO</option>
+            <option value="Femenino" <?= (($_POST['sexo'] ?? '') == 'Femenino') ? 'selected' : '' ?>>FEMENINO</option>
+            <option value="Otro" <?= (($_POST['sexo'] ?? '') == 'Otro') ? 'selected' : '' ?>>OTRO</option>
+        </select>
 
-<input type="date" name="nacimiento" max="<?php echo date('Y-m-d'); ?>" required>
+        <label for="nacimiento">Fecha de Nacimiento:</label>
+        <input type="date" id="nacimiento" name="nacimiento" max="<?php echo date('Y-m-d'); ?>" value="<?= htmlspecialchars($_POST['nacimiento'] ?? '') ?>" required>
 
-<input type="text" name="calle" placeholder="Calle" required>
-<input type="text" name="num_ext" placeholder="Número Exterior" required>
-<input type="text" name="num_int" placeholder="Número Interior (Opcional)">
-<input type="text" name="cp" placeholder="Código Postal" required>
-<input type="text" name="municipio" placeholder="Municipio" required>
+        <label for="calle">Calle:</label>
+        <input type="text" id="calle" name="calle" value="<?= htmlspecialchars($_POST['calle'] ?? '') ?>" required>
+        
+        <label for="num_ext">Número Exterior:</label>
+        <input type="text" id="num_ext" name="num_ext" value="<?= htmlspecialchars($_POST['num_ext'] ?? '') ?>" required>
+        
+        <label for="num_int">Número Interior (Opcional):</label>
+        <input type="text" id="num_int" name="num_int" value="<?= htmlspecialchars($_POST['num_int'] ?? '') ?>">
+        
+        <label for="cp">Código Postal:</label>
+        <input type="text" id="cp" name="cp" value="<?= htmlspecialchars($_POST['cp'] ?? '') ?>" required>
+        
+        <label for="municipio">Municipio:</label>
+        <input type="text" id="municipio" name="municipio" value="<?= htmlspecialchars($_POST['municipio'] ?? '') ?>" required>
 
-<select name="estado_dir" required>
-<option value=""disabled selected hidden>Estado</option>
-<option>Aguascalientes</option>
-<option>Baja California</option>
-<option>Baja California Sur</option>
-<option>Campeche</option>
-<option>Chiapas</option>
-<option>Chihuahua</option>
-<option>Ciudad de México</option>
-<option>Coahuila</option>
-<option>Colima</option>
-<option>Durango</option>
-<option>Estado de México</option>
-<option>Guanajuato</option>
-<option>Guerrero</option>
-<option>Hidalgo</option>
-<option>Jalisco</option>
-<option>Michoacán</option>
-<option>Morelos</option>
-<option>Nayarit</option>
-<option>Nuevo León</option>
-<option>Oaxaca</option>
-<option>Puebla</option>
-<option>Querétaro</option>
-<option>Quintana Roo</option>
-<option>San Luis Potosí</option>
-<option>Sinaloa</option>
-<option>Sonora</option>
-<option>Tabasco</option>
-<option>Tamaulipas</option>
-<option>Tlaxcala</option>
-<option>Veracruz</option>
-<option>Yucatán</option>
-<option>Zacatecas</option>
-</select>
+        <label for="estado_dir">Estado:</label>
+        <select id="estado_dir" name="estado_dir" required>
+            <option value="" disabled selected hidden>SELECCIONE ESTADO</option>
+            <?php 
+            $estados = ["Aguascalientes", "Baja California", "Baja California Sur", "Campeche", "Chiapas", "Chihuahua", "Ciudad de México", "Coahuila", "Colima", "Durango", "Estado de México", "Guanajuato", "Guerrero", "Hidalgo", "Jalisco", "Michoacán", "Morelos", "Nayarit", "Nuevo León", "Oaxaca", "Puebla", "Querétaro", "Quintana Roo", "San Luis Potosí", "Sinaloa", "Sonora", "Tabasco", "Tamaulipas", "Tlaxcala", "Veracruz", "Yucatán", "Zacatecas"];
+            foreach ($estados as $est) {
+                $selected = (($_POST['estado_dir'] ?? '') == $est) ? 'selected' : '';
+                // Se muestra en mayúsculas en pantalla, pero se envía el valor original ($est)
+                echo "<option value=\"$est\" $selected>" . mb_strtoupper($est, 'UTF-8') . "</option>";
+            }
+            ?>
+        </select>
 
-<select name="tipo_personal" required>
-<option value=""disabled selected hidden>Tipo de Personal</option>
-<option value="Empleado">Empleado</option>
-<option value="Voluntario">Voluntario</option>
-</select>
+        <label for="tipo_personal">Tipo de Personal:</label>
+        <select id="tipo_personal" name="tipo_personal" required>
+            <option value="" disabled selected hidden>SELECCIONE TIPO DE PERSONAL</option>
+            <option value="Empleado" <?= (($_POST['tipo_personal'] ?? '') == 'Empleado') ? 'selected' : '' ?>>EMPLEADO</option>
+            <option value="Voluntario" <?= (($_POST['tipo_personal'] ?? '') == 'Voluntario') ? 'selected' : '' ?>>VOLUNTARIO</option>
+        </select>
 
-<select name="rol">
-<option value=""disabled selected hidden>Rol (Opcional)</option>
-<option value="Director">Director</option>
-<option value="Coordinador">Coordinador</option>
-<option value="Psicologo">Psicologo</option>
-<option value="Doctor">Doctor</option>
-<option value="Abogado">Abogado</option>
-<option value="Trabajador Social">Trabajador Social</option>
-<option value="Analista">Analista</option>
-</select>
+        <label for="rol">Rol (Opcional):</label>
+        <select id="rol" name="rol">
+            <option value="" hidden>SELECCIONE UN ROL</option>
+            <?php 
+            $roles = ["Director", "Coordinador", "Psicologo", "Doctor", "Abogado", "Trabajador Social", "Analista"];
+            foreach ($roles as $r) {
+                $selected = (($_POST['rol'] ?? '') == $r) ? 'selected' : '';
+                echo "<option value=\"$r\" $selected>" . mb_strtoupper($r, 'UTF-8') . "</option>";
+            }
+            ?>
+        </select>
 
-<input type="email" name="correo" placeholder="Correo" required>
+        <label for="correo">Correo Electrónico:</label>
+        <input type="email" id="correo" name="correo" value="<?=($_POST['correo'] ?? '') ?>" required>
 
-<button type="submit">Crear Usuario</button>
+        <button type="submit" style="margin-top: 20px;">Crear Usuario</button>
 
-</form>
+    </form>
 
 </div>
 

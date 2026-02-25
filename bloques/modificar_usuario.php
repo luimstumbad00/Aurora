@@ -1,4 +1,23 @@
 <?php
+session_start(); // Arrancamos la sesión que viene del login
+
+// 1. Validar que el usuario haya iniciado sesión
+if (!isset($_SESSION['usuario'])) {
+    // Si no hay sesión, lo mandamos al login (ajusta la ruta de tu index.php o login.php si es necesario)
+    header("Location: ../index.php"); 
+    exit();
+}
+
+// 2. Validar que solo el Director o Coordinador puedan estar aquí
+$rolActual = $_SESSION['usuario']['rol'];
+
+if ($rolActual !== 'Director' && $rolActual !== 'Coordinador') {
+    // Si es un Analista, Psicólogo, etc., lo regresamos al dashboard de inmediato
+    // Puedes mandarle una variable por URL para mostrarle una alerta de "Acceso Denegado"
+    header("Location: dashboard.php?error=acceso_denegado");
+    exit();
+}
+
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
@@ -8,23 +27,28 @@ $mensaje = "";
 $tipoMensaje = "";
 $usuario = null;
 
+// Atrapamos el mensaje de éxito si venimos de una redirección (Patrón PRG)
+if (isset($_GET['status']) && $_GET['status'] == 'success') {
+    $mensaje = "Datos del usuario actualizados correctamente ✅";
+    $tipoMensaje = "success";
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     // FASE 1: BUSCAR USUARIO
     if (isset($_POST['buscar'])) {
-        $curp_buscar = $_POST['curp_buscar'];
+        $curp_buscar = strtoupper(trim($_POST['curp_buscar']));
         
-        // Se usan alias para extraer correctamente los datos de los tipos compuestos (nombre y direccion)
         $query_buscar = "
             SELECT 
                 curp, rfc, 
-                (nombre).apellido_p AS apellido_p, 
-                (nombre).apellido_m AS apellido_m, 
+                (nombre).apellido_paterno AS apellido_p, 
+                (nombre).apellido_materno AS apellido_m, 
                 (nombre).nombres AS nombres, 
                 (direccion).calle AS calle, 
-                (direccion).num_ext AS num_ext, 
-                (direccion).num_int AS num_int, 
-                (direccion).cp AS cp, 
+                (direccion).numero_exterior AS num_ext, 
+                (direccion).numero_interior AS num_int, 
+                (direccion).codigo_postal AS cp, 
                 (direccion).municipio AS municipio, 
                 (direccion).estado AS estado_dir, 
                 sexo, nacimiento, tipo_personal, rol, correo 
@@ -46,11 +70,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     // FASE 2: ACTUALIZAR USUARIO
     elseif (isset($_POST['actualizar'])) {
-        $curp = $_POST['curp']; // Se mantiene como llave primaria para el WHERE
-        $rfc = $_POST['rfc'];
-        $apellido_p = $_POST['apellido_p'];
-        $apellido_m = $_POST['apellido_m'];
-        $nombres = $_POST['nombres'];
+        $curp = strtoupper(trim($_POST['curp'])); 
+        $rfc = strtoupper(trim($_POST['rfc']));
+        $apellido_p = strtoupper(trim($_POST['apellido_p']));
+        $apellido_m = strtoupper(trim($_POST['apellido_m']));
+        $nombres = strtoupper(trim($_POST['nombres']));
 
         $calle = $_POST['calle'];
         $num_ext = $_POST['num_ext'];
@@ -65,16 +89,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $rol = $_POST['rol'] ?: null;
         $correo = $_POST['correo'];
 
-        // Se actualizan los datos estructurando de nuevo los tipos compuestos con ROW()
         $query_actualizar = "
             UPDATE usuario SET 
                 rfc = $2, 
-                nombre = ROW($3, $4, $5), 
-                direccion = ROW($6, $7, $8, $9, $10, $11), 
+                nombre = ROW($3, $4, $5)::nombre_mex, 
+                direccion = ROW($6, $7, $8, $9, $10, $11)::direccion_mex, 
                 sexo = $12, 
                 nacimiento = $13, 
                 tipo_personal = $14, 
-                rol = $15, 
+                rol = $15::rol_enum, 
                 correo = $16
             WHERE curp = $1
         ";
@@ -88,8 +111,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         ));
 
         if ($result_actualizar) {
-            $mensaje = "Datos del usuario actualizados correctamente ✅";
-            $tipoMensaje = "success";
+            // ¡Aquí ocurre la magia! Redirigimos a la misma página para limpiar el historial POST del navegador
+            header("Location: " . $_SERVER['PHP_SELF'] . "?status=success");
+            exit();
         } else {
             $error = pg_last_error($conn);
             if (strpos($error, 'usuario_correo_key') !== false) {
@@ -103,15 +127,44 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <title>Buscar y Modificar Usuario</title>
     <link rel="stylesheet" href="../css/style.css">
+    <style>
+        .btn-regresar {
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            background-color: #34495e;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            font-family: Arial, sans-serif;
+            transition: background-color 0.3s;
+        }
+        .btn-regresar:hover {
+            background-color: #2c3e50;
+        }
+        /* Estilos para las etiquetas de los campos */
+        label {
+            display: block;
+            text-align: left;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+    </style>
 </head>
 <body>
 
 <div class="login-container">
+
+    <a href="dashboard.php" class="btn-regresar">⬅ Regresar al Dashboard</a>
 
     <h1>Buscar Usuario</h1>
 
@@ -122,7 +175,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <?php endif; ?>
 
     <form method="POST">
-        <input type="text" name="curp_buscar" placeholder="Ingrese CURP a buscar" required maxlength="18">
+        <label for="curp_buscar">Ingrese la CURP del usuario:</label>
+        <input type="text" id="curp_buscar" name="curp_buscar" placeholder="Ej. ABCD123456EFGHIJ78" required maxlength="18">
         <button type="submit" name="buscar">Buscar</button>
     </form>
 
@@ -133,56 +187,79 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <h2>Modificar Datos</h2>
         <form method="POST">
             
-            <input type="text" name="curp" value="<?php echo htmlspecialchars($usuario['curp']); ?>" readonly style="background-color: #e9ecef;">
-            <input type="text" name="rfc" value="<?php echo htmlspecialchars($usuario['rfc']); ?>" required maxlength="13">
+            <label for="curp">CURP (No modificable):</label>
+            <input type="text" id="curp" name="curp" value="<?php echo htmlspecialchars($usuario['curp'] ?? ''); ?>" readonly style="background-color: #e9ecef;">
+            
+            <label for="rfc">RFC:</label>
+            <input type="text" id="rfc" name="rfc" value="<?php echo htmlspecialchars($usuario['rfc'] ?? ''); ?>" required maxlength="13">
 
-            <input type="text" name="apellido_p" value="<?php echo htmlspecialchars($usuario['apellido_p']); ?>" required>
-            <input type="text" name="apellido_m" value="<?php echo htmlspecialchars($usuario['apellido_m']); ?>" required>
-            <input type="text" name="nombres" value="<?php echo htmlspecialchars($usuario['nombres']); ?>" required>
+            <label for="apellido_p">Apellido Paterno:</label>
+            <input type="text" id="apellido_p" name="apellido_p" value="<?php echo htmlspecialchars($usuario['apellido_p'] ?? ''); ?>" required>
+            
+            <label for="apellido_m">Apellido Materno:</label>
+            <input type="text" id="apellido_m" name="apellido_m" value="<?php echo htmlspecialchars($usuario['apellido_m'] ?? ''); ?>" required>
+            
+            <label for="nombres">Nombres:</label>
+            <input type="text" id="nombres" name="nombres" value="<?php echo htmlspecialchars($usuario['nombres'] ?? ''); ?>" required>
 
-            <select name="sexo" required>
-                <option value="Masculino" <?php echo ($usuario['sexo'] == 'Masculino') ? 'selected' : ''; ?>>Masculino</option>
-                <option value="Femenino" <?php echo ($usuario['sexo'] == 'Femenino') ? 'selected' : ''; ?>>Femenino</option>
-                <option value="Otro" <?php echo ($usuario['sexo'] == 'Otro') ? 'selected' : ''; ?>>Otro</option>
+            <label for="sexo">Sexo:</label>
+            <select id="sexo" name="sexo" required>
+                <option value="Masculino" <?php echo (($usuario['sexo'] ?? '') == 'Masculino') ? 'selected' : ''; ?>>Masculino</option>
+                <option value="Femenino" <?php echo (($usuario['sexo'] ?? '') == 'Femenino') ? 'selected' : ''; ?>>Femenino</option>
+                <option value="Otro" <?php echo (($usuario['sexo'] ?? '') == 'Otro') ? 'selected' : ''; ?>>Otro</option>
             </select>
 
-            <input type="date" name="nacimiento" max="<?php echo date('Y-m-d'); ?>" value="<?php echo htmlspecialchars($usuario['nacimiento']); ?>" required>
+            <label for="nacimiento">Fecha de Nacimiento:</label>
+            <input type="date" id="nacimiento" name="nacimiento" max="<?php echo date('Y-m-d'); ?>" value="<?php echo htmlspecialchars($usuario['nacimiento'] ?? ''); ?>" required>
 
-            <input type="text" name="calle" value="<?php echo htmlspecialchars($usuario['calle']); ?>" required>
-            <input type="text" name="num_ext" value="<?php echo htmlspecialchars($usuario['num_ext']); ?>" required>
-            <input type="text" name="num_int" value="<?php echo htmlspecialchars($usuario['num_int']); ?>">
-            <input type="text" name="cp" value="<?php echo htmlspecialchars($usuario['cp']); ?>" required>
-            <input type="text" name="municipio" value="<?php echo htmlspecialchars($usuario['municipio']); ?>" required>
+            <label for="calle">Calle:</label>
+            <input type="text" id="calle" name="calle" value="<?php echo htmlspecialchars($usuario['calle'] ?? ''); ?>" required>
+            
+            <label for="num_ext">Número Exterior:</label>
+            <input type="text" id="num_ext" name="num_ext" value="<?php echo htmlspecialchars($usuario['num_ext'] ?? ''); ?>" required>
+            
+            <label for="num_int">Número Interior (Opcional):</label>
+            <input type="text" id="num_int" name="num_int" value="<?php echo htmlspecialchars($usuario['num_int'] ?? ''); ?>">
+            
+            <label for="cp">Código Postal:</label>
+            <input type="text" id="cp" name="cp" value="<?php echo htmlspecialchars($usuario['cp'] ?? ''); ?>" required>
+            
+            <label for="municipio">Municipio:</label>
+            <input type="text" id="municipio" name="municipio" value="<?php echo htmlspecialchars($usuario['municipio'] ?? ''); ?>" required>
 
-            <select name="estado_dir" required>
+            <label for="estado_dir">Estado:</label>
+            <select id="estado_dir" name="estado_dir" required>
                 <?php 
                 $estados = ["Aguascalientes", "Baja California", "Baja California Sur", "Campeche", "Chiapas", "Chihuahua", "Ciudad de México", "Coahuila", "Colima", "Durango", "Estado de México", "Guanajuato", "Guerrero", "Hidalgo", "Jalisco", "Michoacán", "Morelos", "Nayarit", "Nuevo León", "Oaxaca", "Puebla", "Querétaro", "Quintana Roo", "San Luis Potosí", "Sinaloa", "Sonora", "Tabasco", "Tamaulipas", "Tlaxcala", "Veracruz", "Yucatán", "Zacatecas"];
                 foreach ($estados as $est) {
-                    $selected = ($usuario['estado_dir'] == $est) ? 'selected' : '';
+                    $selected = (($usuario['estado_dir'] ?? '') == $est) ? 'selected' : '';
                     echo "<option value=\"$est\" $selected>$est</option>";
                 }
                 ?>
             </select>
 
-            <select name="tipo_personal" required>
-                <option value="Empleado" <?php echo ($usuario['tipo_personal'] == 'Empleado') ? 'selected' : ''; ?>>Empleado</option>
-                <option value="Voluntario" <?php echo ($usuario['tipo_personal'] == 'Voluntario') ? 'selected' : ''; ?>>Voluntario</option>
+            <label for="tipo_personal">Tipo de Personal:</label>
+            <select id="tipo_personal" name="tipo_personal" required>
+                <option value="Empleado" <?php echo (($usuario['tipo_personal'] ?? '') == 'Empleado') ? 'selected' : ''; ?>>Empleado</option>
+                <option value="Voluntario" <?php echo (($usuario['tipo_personal'] ?? '') == 'Voluntario') ? 'selected' : ''; ?>>Voluntario</option>
             </select>
 
-            <select name="rol">
-                <option value="" hidden>Rol (Opcional)</option>
+            <label for="rol">Rol (Opcional):</label>
+            <select id="rol" name="rol">
+                <option value="" hidden>Seleccione un rol</option>
                 <?php 
                 $roles = ["Director", "Coordinador", "Psicologo", "Doctor", "Abogado", "Trabajador Social", "Analista"];
                 foreach ($roles as $r) {
-                    $selected = ($usuario['rol'] == $r) ? 'selected' : '';
+                    $selected = (($usuario['rol'] ?? '') == $r) ? 'selected' : '';
                     echo "<option value=\"$r\" $selected>$r</option>";
                 }
                 ?>
             </select>
 
-            <input type="email" name="correo" value="<?php echo htmlspecialchars($usuario['correo']); ?>" required>
+            <label for="correo">Correo Electrónico:</label>
+            <input type="email" id="correo" name="correo" value="<?php echo htmlspecialchars($usuario['correo'] ?? ''); ?>" required>
 
-            <button type="submit" name="actualizar">Guardar Cambios</button>
+            <button type="submit" name="actualizar" style="margin-top: 20px;">Guardar Cambios</button>
 
         </form>
     <?php endif; ?>
