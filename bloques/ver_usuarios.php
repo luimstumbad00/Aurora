@@ -43,7 +43,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     $curpAEliminar = $_POST['curp'] ?? '';
 
     if ($curpAEliminar) { 
-        // ¡NUEVA SEGURIDAD!: Evitar que el usuario se borre a sí mismo
         if ($curpAEliminar === $curpLogueado) {
             header("Location: " . $_SERVER['PHP_SELF'] . "?status=self_delete");
             exit();
@@ -160,6 +159,14 @@ if ($resultAll) {
         .usuario-datos div {
             margin-bottom: 4px; 
         }
+        
+        /* Contenedor para alinear los botones de acciones */
+        .acciones-btn {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
         .btn-borrar {
             background: #e74c3c;
             color: white;
@@ -172,6 +179,21 @@ if ($resultAll) {
         .btn-borrar:hover {
             background: #c0392b;
         }
+        
+        /* Nuevo botón de editar */
+        .btn-editar {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-editar:hover {
+            background: #2980b9;
+        }
+
         .etiqueta-yo {
             background: #95a5a6;
             color: white;
@@ -221,21 +243,29 @@ if ($resultAll) {
                     <div class="usuario-header">
                         <strong>
                             <?= htmlspecialchars($u['nombre_completo']) ?>
-                            (CURP: <?= htmlspecialchars($u['curp']) ?>)
+                            <br><small style="color: #666; font-weight: normal;">CURP: <?= htmlspecialchars($u['curp']) ?></small>
                         </strong>
                         
-                        <?php if ($u['curp'] === $curpLogueado): ?>
-                            <span class="etiqueta-yo">Mi Cuenta</span>
-                        <?php else: ?>
-                            <form method="POST" style="margin:0;"> 
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="curp" value="<?= htmlspecialchars($u['curp']) ?>">
-                                <button type="submit" class="btn-borrar" onclick="return confirm('¿Estás seguro de que deseas eliminar este usuario y todos sus datos? Esta acción no se puede deshacer.');">
-                                    Borrar 
-                                </button> 
-                            </form> 
-                        <?php endif; ?>
-                        
+                        <div class="acciones-btn">
+                            
+                            <form action="modificar_usuario.php" method="POST" style="margin:0;">
+                                <input type="hidden" name="curp_buscar" value="<?= htmlspecialchars($u['curp']) ?>">
+                                <button type="submit" name="buscar" class="btn-editar">✏️ Editar</button>
+                            </form>
+
+                            <?php if ($u['curp'] === $curpLogueado): ?>
+                                <span class="etiqueta-yo">Mi Cuenta</span>
+                            <?php else: ?>
+                                <form method="POST" style="margin:0;"> 
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="curp" value="<?= htmlspecialchars($u['curp']) ?>">
+                                    <button type="submit" class="btn-borrar" onclick="return confirm('¿Estás seguro de que deseas eliminar este usuario y todos sus datos? Esta acción no se puede deshacer.');">
+                                        🗑️ Borrar 
+                                    </button> 
+                                </form> 
+                            <?php endif; ?>
+
+                        </div>
                     </div> 
 
                     <div class="usuario-datos"> 

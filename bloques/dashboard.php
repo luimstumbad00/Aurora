@@ -182,7 +182,7 @@ if ($hora >= 6 && $hora < 12) {
 
     <div class="header-card">
         <div class="header-info">
-            <h2><?php echo $saludo; ?>, <?php echo explode(' ', $nombreCompleto)[0]; ?> 👋</h2>
+            <h2><?php echo $saludo; ?>, <?php echo explode(' ', $nombreCompleto)[0]; ?></h2>
             <p><strong>Usuario:</strong> <?php echo $nombreCompleto; ?></p>
             <div class="badge-rol"><?php echo $rol; ?></div>
         </div>
@@ -202,7 +202,7 @@ if ($hora >= 6 && $hora < 12) {
             <a href="modificar_usuario.php" class="nav-item">✏️ Editar Usuario</a>
         <?php endif; ?>
 
-        <a href="logout.php" class="nav-item logout">🚪 Cerrar Sesión</a>
+        <a href="mi_cuenta.php" class="nav-item" style="color: #f39c12;">⚙️ Mi Cuenta</a>
     </div>
 
     <div class="content-card">
