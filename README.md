@@ -1,22 +1,21 @@
+Markdown
+# 🌅 Proyecto Aurora - Sistema de Administración para Fundación en pro de los Derechos de NNA's
 
-## Proyecto Aurora - Sistema de administracion para fundacion en pro de los derechos de NNA´s
-
-Aurora es un sistema web de gestión de personal y de trabajo que permite administrar usuarios bajo distintos roles (Director, Coordinador, Analista, etc.), asi como a futuro darle seguimiento a todos los casos que atiende esta fundacion con niveles de acceso, manejo seguro de sesiones y una base de datos robusta en PostgreSQL que utiliza tipos de datos compuestos para estandarizar la información en México.
+Aurora es un sistema web de gestión de personal y de trabajo que permite administrar usuarios bajo distintos roles (Director, Coordinador, Analista, etc.), así como a futuro darle seguimiento a todos los casos que atiende esta fundación con niveles de acceso, manejo seguro de sesiones y una base de datos robusta en PostgreSQL que utiliza tipos de datos compuestos para estandarizar la información en México.
 
 ---
 
-## Requisitos Previos
+## 🚀 Requisitos Previos
 
 Dependiendo de tu sistema operativo, necesitarás instalar las siguientes herramientas:
 
-### Para Linux (Ubuntu)
+### 🐧 Para Linux (Ubuntu)
 Solo necesitas instalar el servidor web (Apache), PHP y PostgreSQL con su respectiva extensión.
 Abre tu terminal y ejecuta:
 ```bash
 sudo apt update
 sudo apt install apache2 php postgresql postgresql-contrib php-pgsql
-
-###  Para Windows
+🪟 Para Windows
 Descarga e instala XAMPP (para obtener Apache y PHP).
 
 Descarga e instala PostgreSQL desde su página oficial.
@@ -29,23 +28,23 @@ extension=pgsql
 
 Guarda el archivo y reinicia Apache en XAMPP.
 
-
-
-###  Instalación y Configuración
+🛠️ Instalación y Configuración
 Clona o mueve la carpeta del proyecto Aurora a tu directorio de servidor web:
 
 Linux: /var/www/html/Aurora
 
 Windows: C:\xampp\htdocs\Aurora
 
-Configura tu conexión a la base de datos editando el archivo config/database.php con las credenciales de tu instalación local de Postg
+Configura tu conexión a la base de datos editando el archivo config/database.php con las credenciales de tu instalación local de PostgreSQL.
 
-###  Configuración de la Base de Datos
-Abre el servidor de Postgres psql en consola.
+🗄️ Configuración de la Base de Datos
+Abre el servidor de Postgres (psql) en tu consola.
 
-Crea una base de datos nueva (aurora).
+Crea una base de datos nueva llamada aurora.
 
 Ejecuta el siguiente script SQL para crear la estructura, los tipos de datos personalizados y cargar el usuario administrador por defecto:
+
+SQL
 -- Configuración de tipos compuestos y ENUM
 CREATE TYPE public.direccion_mex AS (
     calle character varying(100),
@@ -110,8 +109,7 @@ VALUES (
 ALTER TABLE ONLY public.usuario ADD CONSTRAINT usuario_pkey PRIMARY KEY (curp);
 ALTER TABLE ONLY public.usuario ADD CONSTRAINT usuario_correo_key UNIQUE (correo);
 ALTER TABLE ONLY public.usuario ADD CONSTRAINT usuario_rfc_key UNIQUE (rfc);
-
-## Credenciales de Acceso por Defecto
+🔐 Credenciales de Acceso por Defecto
 Una vez que hayas levantado el servidor y montado la base de datos, entra a http://localhost/Aurora (o la ruta que hayas asignado) e inicia sesión con:
 
 Correo: luis@aurora.com
@@ -120,6 +118,7 @@ Contraseña: 123456
 
 Rol: Director
 
+PHP
 /**
  * Proyecto Aurora - Sistema de Administracion
  * * @package     Aurora
