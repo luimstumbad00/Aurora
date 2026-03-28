@@ -4,11 +4,11 @@ require '../config/database.php';
 
 $curp = $_GET['curp'] ?? '';
 
-// Consulta de enfermedades uniendo con el catálogo
+// CORRECCIÓN: La columna en la tabla persona_enfermedad ahora se llama 'curp', no 'curp_nna'
 $query = "SELECT pe.*, ce.nombre_padecimiento, ce.tipo_enfermedad 
           FROM persona_enfermedad pe
           JOIN cat_enfermedad ce ON pe.id_enfermedad = ce.id_enfermedad
-          WHERE pe.curp_nna = '$curp'";
+          WHERE pe.curp = '$curp'";
 
 $res = pg_query($conn, $query);
 ?>

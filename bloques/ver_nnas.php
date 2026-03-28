@@ -6,8 +6,9 @@ if (!isset($_SESSION['usuario'])) {
     exit();
 }
 
+// CORRECCIÓN: Validar contra el rol 'Administrador'
 $rolActual = $_SESSION['usuario']['rol'];
-if ($rolActual !== 'Director' && $rolActual !== 'Coordinador') {
+if ($rolActual !== 'Administrador') {
     header("Location: dashboard.php?error=acceso_denegado");
     exit();
 }
@@ -16,15 +17,30 @@ require '../config/database.php';
 
 $busqueda = isset($_GET['buscar']) ? pg_escape_string($conn, strtoupper($_GET['buscar'])) : '';
 
-// 1. CONSULTA CON JOIN
-$query = "SELECT n.*, 
-          t.nombre as tutor_nombre, t.apellido_paterno as tutor_ap, t.telefono as tutor_tel
+// CORRECCIÓN: JOIN con la tabla persona para NNA y para el Tutor, y simulación de columnas de dirección
+$query = "SELECT 
+            n.curp, 
+            pn.nombre, 
+            pn.apellido_paterno, 
+            pn.fecha_nacimiento,
+            n.situacion_calle, 
+            n.es_migrante, 
+            n.es_refugiado, 
+            n.poblacion_indigena,
+            NULL AS calle, 
+            NULL AS num_ext,
+            pt.nombre as tutor_nombre, 
+            pt.apellido_paterno as tutor_ap, 
+            t.telefono as tutor_tel
           FROM nna n
+          JOIN persona pn ON n.curp = pn.curp
           LEFT JOIN nna_tutor nt ON n.curp = nt.curp_nna
-          LEFT JOIN tutor t ON nt.curp_tutor = t.curp";
+          LEFT JOIN tutor t ON nt.curp_tutor = t.curp
+          LEFT JOIN persona pt ON t.curp = pt.curp";
 
+// CORRECCIÓN: La búsqueda ahora apunta a la tabla persona (pn)
 if (!empty($busqueda)) {
-    $query .= " WHERE n.curp LIKE '%$busqueda%' OR n.nombre LIKE '%$busqueda%' OR n.apellido_paterno LIKE '%$busqueda%'";
+    $query .= " WHERE n.curp LIKE '%$busqueda%' OR pn.nombre LIKE '%$busqueda%' OR pn.apellido_paterno LIKE '%$busqueda%'";
 }
 
 $query .= " ORDER BY n.curp DESC"; 
@@ -113,7 +129,8 @@ $result = pg_query($conn, $query);
                         <td><strong><?= htmlspecialchars($row['curp']) ?></strong></td>
                         <td><?= htmlspecialchars($row['nombre'] . " " . $row['apellido_paterno']) ?></td>
                         <td><?= htmlspecialchars($row['fecha_nacimiento']) ?></td>
-                        <td><?= htmlspecialchars($row['calle'] . " #" . $row['num_ext']) ?></td>
+                        <!-- CORRECCIÓN: Manejo de valores nulos para la dirección -->
+                        <td><?= htmlspecialchars(($row['calle'] ?? 'No registrado') . ($row['num_ext'] ? " #" . $row['num_ext'] : '')) ?></td>
                         <td>
                             <span class="badge <?= $row['situacion_calle'] == 't' ? 'bg-si' : 'bg-no' ?>">Calle: <?= $row['situacion_calle'] == 't' ? 'SÍ' : 'NO' ?></span>
                             <span class="badge <?= $row['es_migrante'] == 't' ? 'bg-si' : 'bg-no' ?>">Migrante: <?= $row['es_migrante'] == 't' ? 'SÍ' : 'NO' ?></span>

@@ -13,11 +13,25 @@ if (empty($curp)) {
     die("Error: CURP no proporcionada.");
 }
 
-// Consulta completa incluyendo todos los campos de tu formulario de registro
-$query = "SELECT n.*, t.nombre as t_nom, t.apellido_paterno as t_ap, t.telefono as t_tel 
+// CORRECCIÓN: Consulta adaptada a la superentidad 'persona' y manejo de columnas de domicilio eliminadas
+$query = "SELECT 
+            pn.nombre, 
+            pn.apellido_paterno, 
+            pn.apellido_materno, 
+            pn.fecha_nacimiento, 
+            pn.sexo,
+            n.*, 
+            pt.nombre as t_nom, 
+            pt.apellido_paterno as t_ap, 
+            t.telefono as t_tel,
+            NULL AS calle, 
+            NULL AS num_ext, 
+            NULL AS num_int
           FROM nna n 
+          JOIN persona pn ON n.curp = pn.curp
           LEFT JOIN nna_tutor nt ON n.curp = nt.curp_nna 
           LEFT JOIN tutor t ON nt.curp_tutor = t.curp 
+          LEFT JOIN persona pt ON t.curp = pt.curp
           WHERE n.curp = '" . pg_escape_string($conn, $curp) . "'";
 
 $res = pg_query($conn, $query);
@@ -83,8 +97,9 @@ if (!$nna) {
 
     <div class="seccion-titulo">Ubicación y Domicilio</div>
     <div class="grid-datos">
-        <div class="dato-box"><label>Calle</label><span><?= htmlspecialchars($nna['calle']) ?></span></div>
-        <div class="dato-box"><label>Núm. Exterior</label><span><?= htmlspecialchars($nna['num_ext']) ?></span></div>
+        <!-- CORRECCIÓN: Se agrega fallback 'No registrado' por si los valores son nulos -->
+        <div class="dato-box"><label>Calle</label><span><?= htmlspecialchars($nna['calle'] ?? 'No registrado') ?></span></div>
+        <div class="dato-box"><label>Núm. Exterior</label><span><?= htmlspecialchars($nna['num_ext'] ?? 'No registrado') ?></span></div>
         <div class="dato-box"><label>Núm. Interior</label><span><?= htmlspecialchars($nna['num_int'] ?? 'N/A') ?></span></div>
         <div class="dato-box"><label>Tutor Responsable</label><span><?= $nna['t_nom'] ? htmlspecialchars($nna['t_nom']." ".$nna['t_ap']) : 'SIN TUTOR ASIGNADO' ?></span></div>
     </div>

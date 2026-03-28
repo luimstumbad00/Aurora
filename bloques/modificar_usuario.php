@@ -8,12 +8,10 @@ if (!isset($_SESSION['usuario'])) {
     exit();
 }
 
-// 2. Validar que solo el Director o Coordinador puedan estar aquí
+// 2. CORRECCIÓN: Validar que solo el Administrador (nuevo rol) pueda estar aquí
 $rolActual = $_SESSION['usuario']['rol'];
 
-if ($rolActual !== 'Director' && $rolActual !== 'Coordinador') {
-    // Si es un Analista, Psicólogo, etc., lo regresamos al dashboard de inmediato
-    // Puedes mandarle una variable por URL para mostrarle una alerta de "Acceso Denegado"
+if ($rolActual !== 'Administrador') {
     header("Location: dashboard.php?error=acceso_denegado");
     exit();
 }
@@ -36,21 +34,22 @@ if (isset($_GET['status']) && $_GET['status'] == 'success') {
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     // FASE 1: BUSCAR USUARIO
-    if (isset($_POST['buscar'])) {
+    if (isset($_POST['buscar']) || isset($_POST['curp_buscar'])) {
         $curp_buscar = strtoupper(trim($_POST['curp_buscar']));
         
+        // CORRECCIÓN: Consulta SELECT ajustada a las columnas simples de la nueva BD
         $query_buscar = "
             SELECT 
                 curp, rfc, 
-                (nombre).apellido_paterno AS apellido_p, 
-                (nombre).apellido_materno AS apellido_m, 
-                (nombre).nombres AS nombres, 
-                (direccion).calle AS calle, 
-                (direccion).numero_exterior AS num_ext, 
-                (direccion).numero_interior AS num_int, 
-                (direccion).codigo_postal AS cp, 
-                (direccion).municipio AS municipio, 
-                (direccion).estado AS estado_dir, 
+                apellido_paterno AS apellido_p, 
+                apellido_materno AS apellido_m, 
+                nombre AS nombres, 
+                calle, 
+                numero_exterior AS num_ext, 
+                numero_interior AS num_int, 
+                codigo_postal AS cp, 
+                municipio, 
+                estado_dir, 
                 sexo, nacimiento, tipo_personal, rol, correo 
             FROM usuario 
             WHERE curp = $1
@@ -89,22 +88,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $rol = $_POST['rol'] ?: null;
         $correo = $_POST['correo'];
 
+        // CORRECCIÓN: Consulta UPDATE ajustada a las columnas simples (sin usar ROW ni tipos compuestos)
         $query_actualizar = "
             UPDATE usuario SET 
                 rfc = $2, 
-                nombre = ROW($3, $4, $5)::nombre_mex, 
-                direccion = ROW($6, $7, $8, $9, $10, $11)::direccion_mex, 
+                nombre = $3, 
+                apellido_paterno = $4,
+                apellido_materno = $5,
+                calle = $6,
+                numero_exterior = $7,
+                numero_interior = $8,
+                codigo_postal = $9,
+                municipio = $10,
+                estado_dir = $11,
                 sexo = $12, 
                 nacimiento = $13, 
                 tipo_personal = $14, 
-                rol = $15::rol_enum, 
+                rol = $15::rol_usuario, 
                 correo = $16
             WHERE curp = $1
         ";
 
         $result_actualizar = @pg_query_params($conn, $query_actualizar, array(
             $curp, $rfc,
-            $apellido_p, $apellido_m, $nombres,
+            $nombres, $apellido_p, $apellido_m, // El orden cambió para coincidir con los parámetros $3, $4, $5
             $calle, $num_ext, $num_int, $cp, $municipio, $estado_dir,
             $sexo, $nacimiento, $tipo_personal,
             $rol, $correo
@@ -175,8 +182,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <?php endif; ?>
 
     <form method="POST">
+        <!-- Mantener el valor buscado en el input -->
         <label for="curp_buscar">Ingrese la CURP del usuario:</label>
-        <input type="text" id="curp_buscar" name="curp_buscar" placeholder="Ej. ABCD123456EFGHIJ78" required maxlength="18">
+        <input type="text" id="curp_buscar" name="curp_buscar" placeholder="Ej. ABCD123456EFGHIJ78" required maxlength="18" value="<?php echo htmlspecialchars($_POST['curp_buscar'] ?? ''); ?>">
         <button type="submit" name="buscar">Buscar</button>
     </form>
 
@@ -247,11 +255,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <label for="rol">Rol (Opcional):</label>
             <select id="rol" name="rol">
                 <option value="" hidden>Seleccione un rol</option>
+                <!-- CORRECCIÓN: Los roles ahora reflejan el ENUM de la base de datos -->
                 <?php 
-                $roles = ["Director", "Coordinador", "Psicologo", "Doctor", "Abogado", "Trabajador Social", "Analista"];
+                $roles = ["Administrador", "Psicologo", "Medico", "Abogado", "Trabajador_Social"];
                 foreach ($roles as $r) {
                     $selected = (($usuario['rol'] ?? '') == $r) ? 'selected' : '';
-                    echo "<option value=\"$r\" $selected>$r</option>";
+                    $label_rol = str_replace('_', ' ', $r); // Para que se vea bonito en pantalla
+                    echo "<option value=\"$r\" $selected>$label_rol</option>";
                 }
                 ?>
             </select>

@@ -7,9 +7,9 @@ if (!isset($_SESSION['usuario'])) {
     exit();  
 }  
 
-// 2. Validar rol (solo Director o Coordinador)  
+// 2. CORRECCIÓN: Validar rol (solo Administrador)  
 $rolActual = $_SESSION['usuario']['rol'];  
-if ($rolActual !== 'Director' && $rolActual !== 'Coordinador') {  
+if ($rolActual !== 'Administrador') {  
     header("Location: dashboard.php?error=acceso_denegado");  
     exit();  
 }  
@@ -39,10 +39,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $sexo = $_POST['sexo'] ?? '';  
     $nacionalidad = $_POST['nacionalidad'] ?? '';  
 
-    // Campos de dirección  
-    $calle = trim($_POST['calle'] ?? '');  
-    $num_ext = trim($_POST['num_ext'] ?? '');  
-    $num_int = !empty($_POST['num_int']) ? trim($_POST['num_int']) : null;  
+    // CORRECCIÓN: Se eliminaron los campos de dirección (calle, num_ext, num_int) porque ya no existen en la tabla NNA
 
     // Campos booleanos (convertir 'Si'/'No' → true/false)  
     $situacion_calle = ($_POST['situacion_calle'] ?? '') === 'Si';  
@@ -50,7 +47,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $es_refugiado = ($_POST['refugiado'] ?? '') === 'Si';  
     $poblacion_indigena = ($_POST['pob_indigena'] ?? '') === 'Si';  
 
-    // --- Validación mínima (requeridos por tu tabla `nna`) ---  
+    // --- Validación mínima ---  
     if (empty($curp) || empty($nombres) || empty($apellido_p) || empty($nacimiento) || empty($sexo) || empty($nacionalidad)) {  
         $mensaje = "Los campos CURP, Nombres, Apellido Paterno, Fecha de nacimiento, Sexo y Nacionalidad son obligatorios ⚠️";  
         $tipoMensaje = "error";  
@@ -60,10 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $nombres = pg_escape_string($conn, strtoupper($nombres));  
         $apellido_p = pg_escape_string($conn, strtoupper($apellido_p));  
         $apellido_m = pg_escape_string($conn, strtoupper($apellido_m));
-        $calle = pg_escape_string($conn, strtoupper($calle));
-        $num_ext = pg_escape_string($conn, strtoupper($num_ext));
-        $num_int = !empty($num_int) ? pg_escape_string($conn, strtoupper($num_int)) : 'NULL';
-        $nacionalidad = pg_escape_string($conn, $nacionalidad); // ✅ se guarda tal cual (ej. "México")
+        $nacionalidad = pg_escape_string($conn, $nacionalidad); 
         $sexo = pg_escape_string($conn, $sexo);
 
         // Convertir booleanos a 'true'/'false' para PostgreSQL
@@ -72,34 +66,43 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $es_refugiado_str = $es_refugiado ? 'true' : 'false';
         $poblacion_indigena_str = $poblacion_indigena ? 'true' : 'false';
 
-        // --- Consulta INSERT para tabla `nna` ---
-        $query = "
-            INSERT INTO nna (
+        // CORRECCIÓN: Iniciar transacción para insertar en las dos tablas (persona y nna)
+        pg_query($conn, "BEGIN");
+
+        // Paso 1: Insertar en la tabla 'persona'
+        $query_persona = "
+            INSERT INTO persona (
                 curp, nombre, apellido_paterno, apellido_materno,
-                fecha_nacimiento, sexo, nacionalidad,
-                calle, num_ext, num_int,
-                situacion_calle, es_migrante, es_refugiado, poblacion_indigena
+                fecha_nacimiento, sexo, tipo_persona
             ) VALUES (
                 '$curp', '$nombres', '$apellido_p', " . ($apellido_m ? "'$apellido_m'" : 'NULL') . ",
-                '$nacimiento', '$sexo', '$nacionalidad',
-                '$calle', '$num_ext', " . ($num_int !== 'NULL' ? "'$num_int'" : 'NULL') . ",
-                $situacion_calle_str, $es_migrante_str, $es_refugiado_str, $poblacion_indigena_str
+                '$nacimiento', '$sexo', 'NNA'
             )
         ";
 
-        $result = pg_query($conn, $query);
+        // Paso 2: Insertar en la tabla 'nna'
+        $query_nna = "
+            INSERT INTO nna (
+                curp, nacionalidad, situacion_calle, es_migrante, es_refugiado, poblacion_indigena
+            ) VALUES (
+                '$curp', '$nacionalidad', $situacion_calle_str, $es_migrante_str, $es_refugiado_str, $poblacion_indigena_str
+            )
+        ";
 
-        if ($result) {
+        $res_persona = @pg_query($conn, $query_persona);
+        $res_nna = @pg_query($conn, $query_nna);
+
+        if ($res_persona && $res_nna) {
+            pg_query($conn, "COMMIT"); // Confirmar transacción
             // Éxito → redirigir para evitar reenvío (PRG)
             header("Location: " . $_SERVER['PHP_SELF'] . "?status=success");
             exit();
         } else {
+            pg_query($conn, "ROLLBACK"); // Revertir si algo falló
             // Error detallado
             $error = pg_last_error($conn);
-            if (strpos($error, 'nna_pkey') !== false || strpos($error, 'unique') !== false) {
+            if (strpos($error, 'persona_pkey') !== false || strpos($error, 'unique') !== false) {
                 $mensaje = "La CURP ya está registrada ⚠️";
-            } elseif (strpos($error, 'check') !== false) {
-                $mensaje = "Datos inválidos (ej. fecha fuera de rango o valor no permitido) ⚠️";
             } else {
                 $mensaje = "Error al registrar al NNA ❌<br><small>" . htmlspecialchars($error) . "</small>";
             }
@@ -168,7 +171,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <label for="nombres">Nombres:</label>
         <input type="text" id="nombres" name="nombres" value="<?= htmlspecialchars($_POST['nombres'] ?? '') ?>" required maxlength="100">
 
-
         <label for="apellido_p">Apellido Paterno:</label>
         <input type="text" id="apellido_p" name="apellido_p" value="<?= htmlspecialchars($_POST['apellido_p'] ?? '') ?>" required maxlength="50">
         
@@ -193,21 +195,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $paises = ["Afganistán", "Albania", "Alemania", "Andorra", "Angola", "Antigua y Barbuda", "Arabia Saudita", "Argelia", "Argentina", "Armenia", "Australia", "Austria", "Azerbaiyán", "Bahamas", "Bahréin", "Bangladés", "Barbados", "Bélgica", "Belice", "Benín", "Bielorrusia", "Bolivia", "Bosnia y Herzegovina", "Brasil", "Bulgaria", "Bután", "Camboya", "Camerún", "Canadá", "Catar", "Chad", "Chile", "China", "Chipre", "Colombia", "Comoras", "Congo", "Corea del Norte", "Corea del Sur", "Costa de Marfil", "Costa Rica", "Croacia", "Cuba", "Dinamarca", "Dominica", "República Dominicana", "Ecuador", "Egipto", "El Salvador", "Emiratos Árabes Unidos", "Eritrea", "Eslovaquia", "Eslovenia", "España", "Estados Unidos", "Estonia", "Esuatini", "Etiopía", "Filipinas", "Finlandia", "Fiyi", "Francia", "Gabón", "Gambia", "Georgia", "Ghana", "Granada", "Grecia", "Guatemala", "Guinea", "Guinea-Bisáu", "Guinea Ecuatorial", "Guyana", "Haití", "Honduras", "Hungría", "India", "Indonesia", "Irak", "Irán", "Irlanda", "Islandia", "Islas Marshall", "Islas Salomón", "Israel", "Italia", "Jamaica", "Japón", "Jordania", "Kazajistán", "Kenia", "Kirguistán", "Kiribati", "Kuwait", "Laos", "Lesoto", "Letonia", "Líbano", "Liberia", "Libia", "Liechtenstein", "Lituania", "Luxemburgo", "Macedonia del Norte", "Madagascar", "Malasia", "Malaui", "Maldivas", "Mali", "Malta", "Marruecos", "Mauricio", "Mauritania", "México", "Micronesia", "Moldavia", "Mónaco", "Mongolia", "Montenegro", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Nicaragua", "Níger", "Nigeria", "Noruega", "Nueva Zelanda", "Omán", "Países Bajos", "Pakistán", "Palaos", "Panamá", "Papúa Nueva Guinea", "Paraguay", "Perú", "Polonia", "Portugal", "Reino Unido", "República Centroafricana", "República Checa", "República Democrática del Congo", "Ruanda", "Rumania", "Rusia", "Samoa", "San Cristóbal y Nieves", "San Marino", "San Vicente y las Granadinas", "Santa Lucía", "Santo Tomé y Príncipe", "Senegal", "Serbia", "Seychelles", "Sierra Leona", "Singapur", "Siria", "Somalia", "Sri Lanka", "Sudáfrica", "Sudán", "Sudán del Sur", "Suecia", "Suiza", "Surinam", "Tailandia", "Taiwán", "Tanzania", "Tayikistán", "Timor Oriental", "Togo", "Tonga", "Trinidad y Tobago", "Túnez", "Turkmenistán", "Turquía", "Tuvalu", "Ucrania", "Uganda", "Uruguay", "Uzbekistán", "Vanuatu", "Vaticano", "Venezuela", "Vietnam", "Yemen", "Yibuti", "Zambia", "Zimbabue"];
             foreach ($paises as $pais) {
                 $selected = (($_POST['nacionalidad'] ?? '') == $pais) ? 'selected' : '';
-                // Se muestra en mayúsculas en pantalla, pero se envía el valor original ($pais)
                 echo "<option value=\"$pais\" $selected>" . mb_strtoupper($pais, 'UTF-8') . "</option>";
             }
             ?>
         </select>
 
-        <label for="calle">Calle:</label>
-        <input type="text" id="calle" name="calle" value="<?= htmlspecialchars($_POST['calle'] ?? '') ?>" required maxlength="100">
-        
-        <label for="num_ext">Número Exterior:</label>
-        <input type="text" id="num_ext" name="num_ext" value="<?= htmlspecialchars($_POST['num_ext'] ?? '') ?>" required>
-        
-        <label for="num_int">Número Interior (Opcional):</label>
-        <input type="text" id="num_int" name="num_int" value="<?= htmlspecialchars($_POST['num_int'] ?? '') ?>">
-        
+        <!-- CORRECCIÓN: Los inputs de Calle, Número Exterior y Número Interior se eliminaron de aquí -->
+
         <label for="situacion_calle">Situación de Calle:</label>
         <select id="situacion_calle" name="situacion_calle" required>
             <option value="" disabled selected hidden>SELECCIONE SI LO ESTÁ O NO</option>
@@ -229,7 +223,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <option value="No" <?= (($_POST['refugiado'] ?? '') == 'No') ? 'selected' : '' ?>>No</option>
         </select>
 
-        <label for="pob_indigena">Población Indígnea:</label>
+        <label for="pob_indigena">Población Indígena:</label>
         <select id="pob_indigena" name="pob_indigena" required>
             <option value="" disabled selected hidden>SELECCIONE SI LO ES O NO</option>
             <option value="Si" <?= (($_POST['pob_indigena'] ?? '') == 'Si') ? 'selected' : '' ?>>Si</option>

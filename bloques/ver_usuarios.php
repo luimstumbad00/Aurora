@@ -7,9 +7,9 @@ if (!isset($_SESSION['usuario'])) {
     exit();
 }
 
-// 2. Validar que solo el Director o Coordinador puedan estar aquí
+// 2. Validar que solo el Administrador pueda estar aquí (CORREGIDO AL NUEVO ROL)
 $rolActual = $_SESSION['usuario']['rol'];
-if ($rolActual !== 'Director' && $rolActual !== 'Coordinador') {
+if ($rolActual !== 'Administrador') {
     header("Location: dashboard.php?error=acceso_denegado");
     exit();
 }
@@ -64,23 +64,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     }
 }
 
-// FASE DE LECTURA DE DATOS
+// FASE DE LECTURA DE DATOS (CORREGIDA A LAS NUEVAS COLUMNAS SIMPLES)
 $usuarios = [];
 $queryAll = "
     SELECT 
-        curp, rfc, 
-        (nombre).apellido_paterno AS apellido_p, 
-        (nombre).apellido_materno AS apellido_m, 
-        (nombre).nombres AS nombres, 
-        (direccion).calle AS calle, 
-        (direccion).numero_exterior AS num_ext, 
-        (direccion).numero_interior AS num_int, 
-        (direccion).codigo_postal AS cp, 
-        (direccion).municipio AS municipio, 
-        (direccion).estado AS estado_dir, 
-        sexo, nacimiento, tipo_personal, rol, estado, correo 
+        curp, 
+        rfc, 
+        apellido_paterno AS apellido_p, 
+        apellido_materno AS apellido_m, 
+        nombre AS nombres, 
+        calle, 
+        numero_exterior AS num_ext, 
+        numero_interior AS num_int, 
+        codigo_postal AS cp, 
+        municipio, 
+        estado_dir, 
+        sexo, 
+        nacimiento, 
+        tipo_personal, 
+        rol, 
+        estado, 
+        correo 
     FROM usuario 
-    ORDER BY (nombre).apellido_paterno, (nombre).apellido_materno, (nombre).nombres
+    ORDER BY apellido_paterno, apellido_materno, nombre
 ";
 
 $resultAll = @pg_query($conn, $queryAll);
@@ -269,15 +275,16 @@ if ($resultAll) {
                     </div> 
 
                     <div class="usuario-datos"> 
-                        <div><strong>RFC:</strong> <?= htmlspecialchars($u['rfc']) ?></div> 
-                        <div><strong>Sexo:</strong> <?= htmlspecialchars($u['sexo']) ?></div> 
-                        <div><strong>Nacimiento:</strong> <?= htmlspecialchars($u['nacimiento']) ?></div> 
-                        <div><strong>Tipo de Personal:</strong> <?= htmlspecialchars($u['tipo_personal']) ?></div> 
-                        <div><strong>Rol:</strong> <?= htmlspecialchars($u['rol'] ?? 'No asignado') ?></div> 
-                        <div><strong>Estado:</strong> <?= htmlspecialchars($u['estado']) ?></div>
-                        <div><strong>Correo:</strong> <?= htmlspecialchars($u['correo']) ?></div>
-                        <div><strong>Dirección:</strong> <?= htmlspecialchars($u['direccion_completa']) ?></div>
-                    </div>
+                    <!-- Agregamos ?? '' a todos para evitar el error de null en PHP 8.1+ -->
+                    <div><strong>RFC:</strong> <?= htmlspecialchars($u['rfc'] ?? '') ?></div> 
+                    <div><strong>Sexo:</strong> <?= htmlspecialchars($u['sexo'] ?? 'No especificado') ?></div> 
+                    <div><strong>Nacimiento:</strong> <?= htmlspecialchars($u['nacimiento'] ?? '') ?></div> 
+                    <div><strong>Tipo de Personal:</strong> <?= htmlspecialchars($u['tipo_personal'] ?? 'No especificado') ?></div> 
+                    <div><strong>Rol:</strong> <?= htmlspecialchars($u['rol'] ?? 'No asignado') ?></div> 
+                    <div><strong>Estado:</strong> <?= htmlspecialchars($u['estado'] ?? '') ?></div>
+                    <div><strong>Correo:</strong> <?= htmlspecialchars($u['correo'] ?? '') ?></div>
+                    <div><strong>Dirección:</strong> <?= htmlspecialchars($u['direccion_completa'] ?? 'Sin dirección registrada') ?></div>
+                </div>
                 </div>
             <?php endforeach; ?>
         <?php else: ?>

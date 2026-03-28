@@ -27,15 +27,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $esta_controlada = isset($_POST['esta_controlada']) ? 'true' : 'false';
     $tratamiento = pg_escape_string($conn, strtoupper(trim($_POST['tratamiento_actual'])));
 
-    // Determinar qué CURP se va a insertar (uno será NULL y otro tendrá valor)
-    $val_nna = $curp_nna ? "'$curp_nna'" : "NULL";
-    $val_tutor = $curp_tutor ? "'$curp_tutor'" : "NULL";
+    // CORRECCIÓN: Determinar una sola CURP objetivo, ya que la tabla ahora usa la columna unificada 'curp'
+    $curp_paciente = $curp_nna ? $curp_nna : $curp_tutor;
 
+    // CORRECCIÓN: Se actualizan las columnas del INSERT al nuevo esquema (solo 'curp')
     $query_insert = "INSERT INTO persona_enfermedad (
-                        curp_nna, curp_tutor, id_enfermedad, 
+                        curp, id_enfermedad, 
                         es_cronica, esta_controlada, tratamiento_actual
                     ) VALUES (
-                        $val_nna, $val_tutor, $id_enfermedad, 
+                        '$curp_paciente', $id_enfermedad, 
                         $es_cronica, $esta_controlada, '$tratamiento'
                     )";
 

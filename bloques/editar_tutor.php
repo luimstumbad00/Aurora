@@ -1,12 +1,14 @@
 <?php
 session_start();
 
+// 1. Validar sesión
 if (!isset($_SESSION['usuario'])) {
-    header("Location: ../index.php");
+    header("Location: ../index.php"); 
     exit();
 }
 
-require '../config/database.php';
+require("../config/database.php");
+$curp = $_SESSION['usuario']['curp'];
 
 $mensaje = "";
 $tipoMensaje = "";
@@ -20,7 +22,8 @@ $curp_tutor_get = pg_escape_string($conn, $_GET['curp']);
 
 // --- LÓGICA PARA ELIMINAR ---
 if (isset($_POST['eliminar_tutor'])) {
-    $query_del = "DELETE FROM tutor WHERE curp = '$curp_tutor_get'";
+    // CORRECCIÓN: Borramos de 'persona', lo cual hace cascada hacia 'tutor' y 'nna_tutor'
+    $query_del = "DELETE FROM persona WHERE curp = '$curp_tutor_get'";
     $res_del = pg_query($conn, $query_del);
 
     if ($res_del) {
@@ -43,29 +46,41 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['actualizar_tutor'])) 
     $correo = pg_escape_string($conn, trim($_POST['correo']));
     $es_adulto_mayor = ($_POST['es_adulto_mayor'] ?? '') === 'Si' ? 'true' : 'false';
 
-    $update_query = "UPDATE tutor SET 
+    // CORRECCIÓN: Dividimos el UPDATE en dos tablas usando una transacción
+    pg_query($conn, "BEGIN");
+
+    $update_persona = "UPDATE persona SET 
                         nombre = '$nombre', 
                         apellido_paterno = '$apellido_p', 
                         apellido_materno = " . ($apellido_m ? "'$apellido_m'" : "NULL") . ", 
-                        sexo = '$sexo', 
+                        sexo = '$sexo'
+                      WHERE curp = '$curp_tutor_get'";
+
+    $update_tutor = "UPDATE tutor SET 
                         es_adulto_mayor = $es_adulto_mayor, 
                         telefono = '$telefono', 
                         correo = '$correo' 
                     WHERE curp = '$curp_tutor_get'";
 
-    $result = pg_query($conn, $update_query);
+    $res_persona = pg_query($conn, $update_persona);
+    $res_tutor = pg_query($conn, $update_tutor);
 
-    if ($result) {
+    if ($res_persona && $res_tutor) {
+        pg_query($conn, "COMMIT"); // Guardamos los cambios
         $mensaje = "Datos actualizados correctamente ✅";
         $tipoMensaje = "success";
     } else {
+        pg_query($conn, "ROLLBACK"); // Revertimos si algo falló
         $mensaje = "Error al actualizar: " . pg_last_error($conn);
         $tipoMensaje = "error";
     }
 }
 
-// Cargar datos actuales
-$sql_tutor = "SELECT * FROM tutor WHERE curp = '$curp_tutor_get'";
+// CORRECCIÓN: Cargar datos actuales usando JOIN con persona
+$sql_tutor = "SELECT t.*, p.nombre, p.apellido_paterno, p.apellido_materno, p.sexo 
+              FROM tutor t 
+              JOIN persona p ON t.curp = p.curp 
+              WHERE t.curp = '$curp_tutor_get'";
 $res_tutor = pg_query($conn, $sql_tutor);
 $tutor = pg_fetch_assoc($res_tutor);
 

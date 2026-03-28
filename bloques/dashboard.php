@@ -12,11 +12,12 @@ require("../config/database.php");
 // Accedemos a la llave 'curp' dentro del arreglo 'usuario'
 $curp = $_SESSION['usuario']['curp'];
 
+// CORRECCIÓN: Nombres de columnas ajustados al esquema de la base de datos
 $query = "
 SELECT 
-    (nombre).nombres AS nombres,
-    (nombre).apellido_paterno AS ap_paterno,
-    (nombre).apellido_materno AS ap_materno,
+    nombre,
+    apellido_paterno,
+    apellido_materno,
     rol
 FROM usuario
 WHERE curp = $1
@@ -25,8 +26,9 @@ WHERE curp = $1
 $result = pg_query_params($conn, $query, array($curp));
 $usuario = pg_fetch_assoc($result);
 
+// CORRECCIÓN: Ajuste de las llaves del arreglo para coincidir con la consulta
 // trim() elimina espacios extra por si no tienen apellido materno, por ejemplo
-$nombreCompleto = trim($usuario['nombres'] . " " . $usuario['ap_paterno'] . " " . $usuario['ap_materno']);
+$nombreCompleto = trim($usuario['nombre'] . " " . $usuario['apellido_paterno'] . " " . $usuario['apellido_materno']);
 $rol = $usuario['rol'];
 
 // Configurar zona horaria y generar saludo dinámico
@@ -198,7 +200,8 @@ if ($hora >= 6 && $hora < 12) {
         <a href="mi_cuenta.php" class="nav-item" style="color: #f39c12;">⚙️ Mi Cuenta</a>
         <a href="ver_usuarios.php" class="nav-item">👥 Ver Usuarios</a>
         <a href="ver_nnas.php" class="nav-item">👥 Ver a los NNA's</a>
-        <?php if ($rol === 'Director' || $rol === 'Coordinador'): ?>
+        
+        <?php if ($rol === 'Administrador'): ?>
             <a href="agusuario.php" class="nav-item">➕ Agregar Usuario</a>
             <a href="modificar_usuario.php" class="nav-item">✏️ Editar Usuario</a>
             <a href="agregar_nna.php" class="nav-item">➕ Agregar NNA's</a>
