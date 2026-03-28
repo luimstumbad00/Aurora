@@ -195,14 +195,15 @@ if ($hora >= 6 && $hora < 12) {
     </div>
 
     <div class="nav-grid">
+        <a href="mi_cuenta.php" class="nav-item" style="color: #f39c12;">⚙️ Mi Cuenta</a>
         <a href="ver_usuarios.php" class="nav-item">👥 Ver Usuarios</a>
-        
+        <a href="ver_nnas.php" class="nav-item">👥 Ver a los NNA's</a>
         <?php if ($rol === 'Director' || $rol === 'Coordinador'): ?>
             <a href="agusuario.php" class="nav-item">➕ Agregar Usuario</a>
             <a href="modificar_usuario.php" class="nav-item">✏️ Editar Usuario</a>
+            <a href="agregar_nna.php" class="nav-item">➕ Agregar NNA's</a>
+            <a href="ver_tutores.php" class="nav-item">👥 Ver a los Tutores</a>
         <?php endif; ?>
-
-        <a href="mi_cuenta.php" class="nav-item" style="color: #f39c12;">⚙️ Mi Cuenta</a>
     </div>
 
     <div class="content-card">
