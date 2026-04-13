@@ -1,111 +1,90 @@
 <?php  
 session_start();  
 
-// 1. Validar sesión  
+// 1. Validar sesión y rol
 if (!isset($_SESSION['usuario'])) {  
     header("Location: ../index.php");  
     exit();  
 }  
 
-// 2. CORRECCIÓN: Validar rol (solo Administrador)  
 $rolActual = $_SESSION['usuario']['rol'];  
 if ($rolActual !== 'Administrador') {  
     header("Location: dashboard.php?error=acceso_denegado");  
     exit();  
 }  
 
-// Errores (solo desarrollo)  
-ini_set('display_errors', 1);  
-error_reporting(E_ALL);  
-
 require '../config/database.php';  
 
 $mensaje = "";  
 $tipoMensaje = "";  
 
-// Mensaje de éxito tras redirección (PRG)  
 if (isset($_GET['status']) && $_GET['status'] === 'success') {  
-    $mensaje = "NNA registrado correctamente ✅";  
+    $mensaje = "NNA registrado correctamente con dirección ✅";  
     $tipoMensaje = "success";  
 }  
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {  
-    // --- Campos obligatorios (validación básica) ---  
-    $curp = trim($_POST['curp'] ?? '');  
-    $nombres = trim($_POST['nombres'] ?? '');  
-    $apellido_p = trim($_POST['apellido_p'] ?? '');  
-    $apellido_m = trim($_POST['apellido_m'] ?? '');  
+    // --- Datos Personales (Superentidad Persona) ---
+    $curp = strtoupper(trim($_POST['curp'] ?? ''));  
+    $nombres = strtoupper(trim($_POST['nombres'] ?? ''));  
+    $apellido_p = strtoupper(trim($_POST['apellido_p'] ?? ''));  
+    $apellido_m = strtoupper(trim($_POST['apellido_m'] ?? ''));  
     $nacimiento = $_POST['nacimiento'] ?? '';  
     $sexo = $_POST['sexo'] ?? '';  
+
+    // --- Dirección Completa (Ahora en Persona) ---
+    $calle = strtoupper(trim($_POST['calle'] ?? ''));
+    $num_ext = strtoupper(trim($_POST['num_ext'] ?? ''));
+    $num_int = !empty($_POST['num_int']) ? strtoupper(trim($_POST['num_int'])) : 'NULL';
+    $municipio = strtoupper(trim($_POST['municipio'] ?? ''));
+    $estado_dir = $_POST['estado_dir'] ?? '';
+
+    // --- Datos Específicos (Subentidad NNA) ---
     $nacionalidad = $_POST['nacionalidad'] ?? '';  
+    $situacion_calle = ($_POST['situacion_calle'] ?? '') === 'Si' ? 'true' : 'false';  
+    $es_migrante = ($_POST['migrante'] ?? '') === 'Si' ? 'true' : 'false';  
+    $es_refugiado = ($_POST['refugiado'] ?? '') === 'Si' ? 'true' : 'false';  
+    $poblacion_indigena = ($_POST['pob_indigena'] ?? '') === 'Si' ? 'true' : 'false';  
 
-    // CORRECCIÓN: Se eliminaron los campos de dirección (calle, num_ext, num_int) porque ya no existen en la tabla NNA
-
-    // Campos booleanos (convertir 'Si'/'No' → true/false)  
-    $situacion_calle = ($_POST['situacion_calle'] ?? '') === 'Si';  
-    $es_migrante = ($_POST['migrante'] ?? '') === 'Si';  
-    $es_refugiado = ($_POST['refugiado'] ?? '') === 'Si';  
-    $poblacion_indigena = ($_POST['pob_indigena'] ?? '') === 'Si';  
-
-    // --- Validación mínima ---  
-    if (empty($curp) || empty($nombres) || empty($apellido_p) || empty($nacimiento) || empty($sexo) || empty($nacionalidad)) {  
-        $mensaje = "Los campos CURP, Nombres, Apellido Paterno, Fecha de nacimiento, Sexo y Nacionalidad son obligatorios ⚠️";  
+    if (empty($curp) || empty($nombres) || empty($apellido_p) || empty($nacimiento)) {  
+        $mensaje = "Los campos básicos son obligatorios ⚠️";  
         $tipoMensaje = "error";  
     } else {  
-        // Preparar valores para inserción (escapar/limpiar)  
-        $curp = pg_escape_string($conn, $curp);  
-        $nombres = pg_escape_string($conn, strtoupper($nombres));  
-        $apellido_p = pg_escape_string($conn, strtoupper($apellido_p));  
-        $apellido_m = pg_escape_string($conn, strtoupper($apellido_m));
-        $nacionalidad = pg_escape_string($conn, $nacionalidad); 
-        $sexo = pg_escape_string($conn, $sexo);
-
-        // Convertir booleanos a 'true'/'false' para PostgreSQL
-        $situacion_calle_str = $situacion_calle ? 'true' : 'false';
-        $es_migrante_str = $es_migrante ? 'true' : 'false';
-        $es_refugiado_str = $es_refugiado ? 'true' : 'false';
-        $poblacion_indigena_str = $poblacion_indigena ? 'true' : 'false';
-
-        // CORRECCIÓN: Iniciar transacción para insertar en las dos tablas (persona y nna)
         pg_query($conn, "BEGIN");
 
-        // Paso 1: Insertar en la tabla 'persona'
+        // PASO 1: Insertar en la tabla 'persona' (incluye la dirección)
         $query_persona = "
             INSERT INTO persona (
                 curp, nombre, apellido_paterno, apellido_materno,
-                fecha_nacimiento, sexo, tipo_persona
+                fecha_nacimiento, sexo, tipo_persona, 
+                calle, numero_exterior, numero_interior, municipio, estado_dir
             ) VALUES (
                 '$curp', '$nombres', '$apellido_p', " . ($apellido_m ? "'$apellido_m'" : 'NULL') . ",
-                '$nacimiento', '$sexo', 'NNA'
+                '$nacimiento', '$sexo', 'NNA',
+                '$calle', '$num_ext', " . ($num_int !== 'NULL' ? "'$num_int'" : 'NULL') . ", '$municipio', '$estado_dir'
             )
         ";
 
-        // Paso 2: Insertar en la tabla 'nna'
+        // PASO 2: Insertar en la tabla 'nna'
         $query_nna = "
             INSERT INTO nna (
                 curp, nacionalidad, situacion_calle, es_migrante, es_refugiado, poblacion_indigena
             ) VALUES (
-                '$curp', '$nacionalidad', $situacion_calle_str, $es_migrante_str, $es_refugiado_str, $poblacion_indigena_str
+                '$curp', '$nacionalidad', $situacion_calle, $es_migrante, $es_refugiado, $poblacion_indigena
             )
         ";
 
-        $res_persona = @pg_query($conn, $query_persona);
-        $res_nna = @pg_query($conn, $query_nna);
+        $res1 = @pg_query($conn, $query_persona);
+        $res2 = @pg_query($conn, $query_nna);
 
-        if ($res_persona && $res_nna) {
-            pg_query($conn, "COMMIT"); // Confirmar transacción
-            // Éxito → redirigir para evitar reenvío (PRG)
+        if ($res1 && $res2) {
+            pg_query($conn, "COMMIT");
             header("Location: " . $_SERVER['PHP_SELF'] . "?status=success");
             exit();
         } else {
-            pg_query($conn, "ROLLBACK"); // Revertir si algo falló
-            // Error detallado
+            pg_query($conn, "ROLLBACK");
             $error = pg_last_error($conn);
-            if (strpos($error, 'persona_pkey') !== false || strpos($error, 'unique') !== false) {
-                $mensaje = "La CURP ya está registrada ⚠️";
-            } else {
-                $mensaje = "Error al registrar al NNA ❌<br><small>" . htmlspecialchars($error) . "</small>";
-            }
+            $mensaje = (strpos($error, 'persona_pkey') !== false) ? "La CURP ya existe ⚠️" : "Error: " . $error;
             $tipoMensaje = "error";
         }
     }
@@ -114,126 +93,128 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Registrar NNA's</title>
-<link rel="stylesheet" href="../css/style.css">
-<style>
-    .btn-regresar {
-        display: inline-block;
-        margin-bottom: 20px;
-        padding: 10px 15px;
-        background-color: #34495e;
-        color: white;
-        text-decoration: none;
-        border-radius: 5px;
-        font-weight: bold;
-        font-family: Arial, sans-serif;
-        transition: background-color 0.3s;
-    }
-    .btn-regresar:hover {
-        background-color: #2c3e50;
-    }
-    label {
-        display: block;
-        text-align: left;
-        margin-top: 15px;
-        margin-bottom: 5px;
-        font-weight: bold;
-        color: #2c3e50;
-        font-size: 14px;
-    }
-    /* Forzamos a que todo lo que se escriba en los inputs de texto se vea en MAYÚSCULAS automáticamente */
-    input[type="text"] {
-        text-transform: uppercase;
-    }
-</style>
+    <meta charset="UTF-8">
+    <title>Registrar NNA's</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        .grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        label { display: block; margin-top: 15px; font-weight: bold; color: #2c3e50; }
+        input, select { width: 100%; padding: 10px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+        input[type="text"] { text-transform: uppercase; }
+        .btn-submit { background: #27ae60; color: white; border: none; padding: 15px; width: 100%; margin-top: 25px; border-radius: 5px; font-weight: bold; cursor: pointer; }
+    </style>
 </head>
 <body>
 
-<div class="login-container">
-
-    <div style="text-align: left;">
-        <a href="dashboard.php" class="btn-regresar">⬅ Regresar al Dashboard</a>
-    </div>
-
+<div class="login-container" style="max-width: 700px;">
+    <a href="dashboard.php" style="text-decoration:none; color:#7f8c8d;">⬅ Dashboard</a>
     <h1>Registrar NNA</h1>
 
     <?php if ($mensaje): ?>
-    <p style="color: <?php echo $tipoMensaje == 'success' ? 'green' : 'red'; ?>; font-weight: bold; background-color: <?php echo $tipoMensaje == 'success' ? '#d4edda' : '#f8d7da'; ?>; padding: 10px; border-radius: 5px;">
-        <?php echo $mensaje; ?>
-    </p>
+        <p style="background:<?= $tipoMensaje=='success'?'#d4edda':'#f8d7da'?>; color:<?= $tipoMensaje=='success'?'green':'red'?>; padding:10px; border-radius:5px; text-align:center;">
+            <?= $mensaje ?>
+        </p>
     <?php endif; ?>
 
     <form method="POST">
-        <label for="curp">CURP:</label>
-        <input type="text" id="curp" name="curp" placeholder="Ej. ABCD123456EFGHIJ78" value="<?= htmlspecialchars($_POST['curp'] ?? '') ?>" required maxlength="18">
+        <label>CURP:</label>
+        <input type="text" name="curp" maxlength="18" required>
+
+        <div class="grid-form">
+            <div>
+                <label>Nombres:</label>
+                <input type="text" name="nombres" required>
+            </div>
+            <div>
+                <label>Apellido Paterno:</label>
+                <input type="text" name="apellido_p" required>
+            </div>
+        </div>
+
+        <label>Apellido Materno:</label>
+        <input type="text" name="apellido_m">
+
+        <div class="grid-form">
+            <div>
+                <label>Fecha de Nacimiento:</label>
+                <input type="date" name="nacimiento" required>
+            </div>
+            <div>
+                <label>Sexo:</label>
+                <select name="sexo" required>
+                    <option value="Masculino">MASCULINO</option>
+                    <option value="Femenino">FEMENINO</option>
+                    <option value="Otro">OTRO</option>
+                </select>
+            </div>
+        </div>
+
+        <h3 style="margin-top:25px; border-bottom:1px solid #eee; color:#2980b9;">Dirección y Ubicación</h3>
         
-        <label for="nombres">Nombres:</label>
-        <input type="text" id="nombres" name="nombres" value="<?= htmlspecialchars($_POST['nombres'] ?? '') ?>" required maxlength="100">
+        <label>Calle:</label>
+        <input type="text" name="calle" required>
 
-        <label for="apellido_p">Apellido Paterno:</label>
-        <input type="text" id="apellido_p" name="apellido_p" value="<?= htmlspecialchars($_POST['apellido_p'] ?? '') ?>" required maxlength="50">
+        <div class="grid-form">
+            <div>
+                <label>Núm. Exterior:</label>
+                <input type="text" name="num_ext" required>
+            </div>
+            <div>
+                <label>Núm. Interior:</label>
+                <input type="text" name="num_int">
+            </div>
+        </div>
+
+        <div class="grid-form">
+            <div>
+                <label>Municipio/Alcaldía:</label>
+                <input type="text" name="municipio" required>
+            </div>
+            <div>
+                <label>Estado:</label>
+                <select name="estado_dir" required>
+                    <option value="Ciudad de México">CIUDAD DE MÉXICO</option>
+                    <option value="Estado de México">ESTADO DE MÉXICO</option>
+                    <option value="Hidalgo">HIDALGO</option>
+                    </select>
+            </div>
+        </div>
+
+        <h3 style="margin-top:25px; border-bottom:1px solid #eee; color:#c0392b;">Datos de Vulnerabilidad</h3>
         
-        <label for="apellido_m">Apellido Materno:</label>
-        <input type="text" id="apellido_m" name="apellido_m" value="<?= htmlspecialchars($_POST['apellido_m'] ?? '') ?>" required maxlength="50">
-        
-        <label for="nacimiento">Fecha de Nacimiento:</label>
-        <input type="date" id="nacimiento" name="nacimiento" max="<?php echo date('Y-m-d'); ?>" value="<?= htmlspecialchars($_POST['nacimiento'] ?? '') ?>" required>
+        <div class="grid-form">
+            <div>
+                <label>Nacionalidad:</label>
+                <input type="text" name="nacionalidad" value="MÉXICO">
+            </div>
+            <div>
+                <label>¿Situación de Calle?</label>
+                <select name="situacion_calle">
+                    <option value="No">No</option>
+                    <option value="Si">Si</option>
+                </select>
+            </div>
+        </div>
 
-        <label for="sexo">Sexo:</label>
-        <select id="sexo" name="sexo" required>
-            <option value="" disabled selected hidden>SELECCIONE SEXO</option>
-            <option value="Masculino" <?= (($_POST['sexo'] ?? '') == 'Masculino') ? 'selected' : '' ?>>MASCULINO</option>
-            <option value="Femenino" <?= (($_POST['sexo'] ?? '') == 'Femenino') ? 'selected' : '' ?>>FEMENINO</option>
-            <option value="Otro" <?= (($_POST['sexo'] ?? '') == 'Otro') ? 'selected' : '' ?>>OTRO</option>
-        </select>
+        <div class="grid-form">
+            <div>
+                <label>¿Es Migrante?</label>
+                <select name="migrante">
+                    <option value="No">No</option>
+                    <option value="Si">Si</option>
+                </select>
+            </div>
+            <div>
+                <label>¿Población Indígena?</label>
+                <select name="pob_indigena">
+                    <option value="No">No</option>
+                    <option value="Si">Si</option>
+                </select>
+            </div>
+        </div>
 
-        <label for="nacionalidad">Nacionalidad:</label>
-        <select id="nacionalidad" name="nacionalidad" required>
-            <option value="" disabled selected hidden>SELECCIONE EL PAÍS</option>
-            <?php 
-            $paises = ["Afganistán", "Albania", "Alemania", "Andorra", "Angola", "Antigua y Barbuda", "Arabia Saudita", "Argelia", "Argentina", "Armenia", "Australia", "Austria", "Azerbaiyán", "Bahamas", "Bahréin", "Bangladés", "Barbados", "Bélgica", "Belice", "Benín", "Bielorrusia", "Bolivia", "Bosnia y Herzegovina", "Brasil", "Bulgaria", "Bután", "Camboya", "Camerún", "Canadá", "Catar", "Chad", "Chile", "China", "Chipre", "Colombia", "Comoras", "Congo", "Corea del Norte", "Corea del Sur", "Costa de Marfil", "Costa Rica", "Croacia", "Cuba", "Dinamarca", "Dominica", "República Dominicana", "Ecuador", "Egipto", "El Salvador", "Emiratos Árabes Unidos", "Eritrea", "Eslovaquia", "Eslovenia", "España", "Estados Unidos", "Estonia", "Esuatini", "Etiopía", "Filipinas", "Finlandia", "Fiyi", "Francia", "Gabón", "Gambia", "Georgia", "Ghana", "Granada", "Grecia", "Guatemala", "Guinea", "Guinea-Bisáu", "Guinea Ecuatorial", "Guyana", "Haití", "Honduras", "Hungría", "India", "Indonesia", "Irak", "Irán", "Irlanda", "Islandia", "Islas Marshall", "Islas Salomón", "Israel", "Italia", "Jamaica", "Japón", "Jordania", "Kazajistán", "Kenia", "Kirguistán", "Kiribati", "Kuwait", "Laos", "Lesoto", "Letonia", "Líbano", "Liberia", "Libia", "Liechtenstein", "Lituania", "Luxemburgo", "Macedonia del Norte", "Madagascar", "Malasia", "Malaui", "Maldivas", "Mali", "Malta", "Marruecos", "Mauricio", "Mauritania", "México", "Micronesia", "Moldavia", "Mónaco", "Mongolia", "Montenegro", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Nicaragua", "Níger", "Nigeria", "Noruega", "Nueva Zelanda", "Omán", "Países Bajos", "Pakistán", "Palaos", "Panamá", "Papúa Nueva Guinea", "Paraguay", "Perú", "Polonia", "Portugal", "Reino Unido", "República Centroafricana", "República Checa", "República Democrática del Congo", "Ruanda", "Rumania", "Rusia", "Samoa", "San Cristóbal y Nieves", "San Marino", "San Vicente y las Granadinas", "Santa Lucía", "Santo Tomé y Príncipe", "Senegal", "Serbia", "Seychelles", "Sierra Leona", "Singapur", "Siria", "Somalia", "Sri Lanka", "Sudáfrica", "Sudán", "Sudán del Sur", "Suecia", "Suiza", "Surinam", "Tailandia", "Taiwán", "Tanzania", "Tayikistán", "Timor Oriental", "Togo", "Tonga", "Trinidad y Tobago", "Túnez", "Turkmenistán", "Turquía", "Tuvalu", "Ucrania", "Uganda", "Uruguay", "Uzbekistán", "Vanuatu", "Vaticano", "Venezuela", "Vietnam", "Yemen", "Yibuti", "Zambia", "Zimbabue"];
-            foreach ($paises as $pais) {
-                $selected = (($_POST['nacionalidad'] ?? '') == $pais) ? 'selected' : '';
-                echo "<option value=\"$pais\" $selected>" . mb_strtoupper($pais, 'UTF-8') . "</option>";
-            }
-            ?>
-        </select>
-
-        <!-- CORRECCIÓN: Los inputs de Calle, Número Exterior y Número Interior se eliminaron de aquí -->
-
-        <label for="situacion_calle">Situación de Calle:</label>
-        <select id="situacion_calle" name="situacion_calle" required>
-            <option value="" disabled selected hidden>SELECCIONE SI LO ESTÁ O NO</option>
-            <option value="Si" <?= (($_POST['situacion_calle'] ?? '') == 'Si') ? 'selected' : '' ?>>Si</option>
-            <option value="No" <?= (($_POST['situacion_calle'] ?? '') == 'No') ? 'selected' : '' ?>>No</option>
-        </select>
-
-        <label for="migrante">Migrante:</label>
-        <select id="migrante" name="migrante" required>
-            <option value="" disabled selected hidden>SELECCIONE SI LO ES O NO</option>
-            <option value="Si" <?= (($_POST['migrante'] ?? '') == 'Si') ? 'selected' : '' ?>>Si</option>
-            <option value="No" <?= (($_POST['migrante'] ?? '') == 'No') ? 'selected' : '' ?>>No</option>
-        </select>
-
-        <label for="refugiado">Refugiado:</label>
-        <select id="refugiado" name="refugiado" required>
-            <option value="" disabled selected hidden>SELECCIONE SI LO ES O NO</option>
-            <option value="Si" <?= (($_POST['refugiado'] ?? '') == 'Si') ? 'selected' : '' ?>>Si</option>
-            <option value="No" <?= (($_POST['refugiado'] ?? '') == 'No') ? 'selected' : '' ?>>No</option>
-        </select>
-
-        <label for="pob_indigena">Población Indígena:</label>
-        <select id="pob_indigena" name="pob_indigena" required>
-            <option value="" disabled selected hidden>SELECCIONE SI LO ES O NO</option>
-            <option value="Si" <?= (($_POST['pob_indigena'] ?? '') == 'Si') ? 'selected' : '' ?>>Si</option>
-            <option value="No" <?= (($_POST['pob_indigena'] ?? '') == 'No') ? 'selected' : '' ?>>No</option>
-        </select>
-
-        <button type="submit" style="margin-top: 20px;">Registrar al NNA</button>
-
+        <button type="submit" class="btn-submit">Registrar al NNA</button>
     </form>
-
 </div>
 
 </body>

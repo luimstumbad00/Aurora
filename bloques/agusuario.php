@@ -9,7 +9,7 @@ if (!isset($_SESSION['usuario'])) {
 
 // 2. Validar que solo el Director o Coordinador puedan registrar
 $rolActual = $_SESSION['usuario']['rol'];
-if ($rolActual !== 'Director' && $rolActual !== 'Coordinador') {
+if ($rolActual !== 'Director' && $rolActual !== 'Coordinador' && $rolActual !== 'Administrador') {
     header("Location: dashboard.php?error=acceso_denegado");
     exit();
 }

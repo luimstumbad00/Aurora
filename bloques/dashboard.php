@@ -202,10 +202,11 @@ if ($hora >= 6 && $hora < 12) {
         <a href="ver_nnas.php" class="nav-item">👥 Ver a los NNA's</a>
         
         <?php if ($rol === 'Administrador'): ?>
-            <a href="agusuario.php" class="nav-item">➕ Agregar Usuario</a>
-            <a href="modificar_usuario.php" class="nav-item">✏️ Editar Usuario</a>
-            <a href="agregar_nna.php" class="nav-item">➕ Agregar NNA's</a>
-            <a href="ver_tutores.php" class="nav-item">👥 Ver a los Tutores</a>
+            <a href="agusuario.php" class="nav-item"> Agregar Usuario</a>
+            <a href="modificar_usuario.php" class="nav-item"> Editar Usuario</a>
+            <a href="agregar_nna.php" class="nav-item"> Agregar NNA's</a>
+            <a href="ver_tutores.php" class="nav-item"> Ver a los Tutores</a>
+            <a href="asignar_tutor.php" class="nav-item"> Agregar Tutor</a>
         <?php endif; ?>
     </div>
 
