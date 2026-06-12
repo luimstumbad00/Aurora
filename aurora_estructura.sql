@@ -147,13 +147,14 @@ CREATE TABLE cat_lengua (
 );
 
 INSERT INTO cat_lengua (nombre) VALUES
-    ('Español'),
-    ('Lengua de Señas Mexicana (LSM)'),
-    ('Náhuatl'),
-    ('Maya'),
-    ('Tseltal'),
-    ('Mixteco'),
-    ('Inglés');
+('Akateko'),('Amuzgo'),('Awakateko'),('Ayapaneco'),('Chatino'),('Chichimeca Jonaz'),('Chinanteco'),('Chocholteco'),('Chol'),('Chontal de Oaxaca'),('Chontal de Tabasco'),
+('Chuj'),('Cochimi'),('Cora'),('Cuicateco'),('Guarijio'),('Huave'),('Huichol'),('Ixcateco'),('Ixil'),('Jacalteko'),('Kaqchikel'),('Kickapoo'),('Kiche'),
+('Kiliwa'),('Kumiai'),('Lacandon'),('Mam'),('Mateo'),('Matlatzinca'),('Maya Yucateco'),('Mazahua'),('Mazateco'),('Mixe'),('Mixteco'),('Nahuatl'),('Oluteco'),
+('Opata'),('Otomi'),('Paipai'),('Pame'),('Papago'),('Pima'),('Popoloca'),('Popoluca'),('Popoluca de la Sierra'),('Qanjobal'),('Qeqchi'),('Qatok'),
+('Sakapulteko'),('Sayulteco'),('Seri'),('Sipakapense'),('Tarahumara'),('Tarasco Purepecha'),('Teko'),('Tektiteko'),('Tepehua'),('Tepehuano del Norte'),('Tepehuano del Sur'),
+('Texistepequeño'),('Tlapaneco Mephaa'),('Tlahuica'),('Totonaco'),('Triqui'),('Tseltal'),('Tsotsil'),('Uspanteko'),('Yaqui'),('Zapoteco'),('Zoque'),
+('Zoque');
+
 
 COMMENT ON TABLE cat_lengua IS 'Catálogo de lenguas habladas/señadas por NNA conforme al FUD/LGDNNA. Incluye lenguas indígenas nacionales y LSM.';
 
@@ -166,13 +167,20 @@ CREATE TABLE cat_pais (
 );
 
 INSERT INTO cat_pais (nombre) VALUES
-    ('México'),
-    ('Honduras'),
-    ('El Salvador'),
-    ('Guatemala'),
-    ('Estados Unidos'),
-    ('Haití'),
-    ('Venezuela');
+('Afghanistan'),('Albania'),('Alemania'),('Andorra'),('Angola'),('Argentina'),('Australia'),('Austria'),('Bahamas'),('Baréin'),('Barbados'),('Bélgica'),
+('Belice'),('Benín'),('Bután'),('Bolivia'),('Botsuana'),('Brasil'),('Bulgaria'),('Burkina Faso'),('Burundi'),('Cabo Verde'),('Camboya'),('Camerún'),('Canadá'),
+('Catar'),('Chad'),('Chile'),('China'),('Chipre'),('Ciudad del Vaticano'),('Colombia'),('Comoras'),('Corea del Norte'),('Corea del Sur'),('Costa de Marfil'),
+('Costa Rica'),('Cuba'),('Dinamarca'),('Dominica'),('Ecuador'),('Egipto'),('El Salvador'),('Emiratos Árabes Unidos'),('Eslovaquia'),('Eslovenia'),('España'),
+('Estonia'),('Etiopía'),('Fiyi'),('Filipinas'),('Finlandia'),('Francia'),('Gabón'),('Gambia'),('Ghana'),('Granada'),('Grecia'),('Guinea'),('Guinea Ecuatorial'),('Guinea-Bisau'),
+('Guyana'),('Guyana Británica'),('Haití'),('Honduras'),('Hungría'),('India'),('Indonesia'),('Irak'),('Irán'),('Irlanda'),('Islandia'),('Israel'),('Islas Salomón'),
+('Italia'),('Jamaica'),('Japón'),('Jordania'),('Kenia'),('Kirguistán'),('Kuwait'),('Laos'),('Lesoto'),('Líbano'),('Liberia'),('Liechtenstein'),('Libia'),
+('Lituania'),('Luxemburgo'),('Macedonia'),('Malaui'),('Malasia'),('Maldivas'),('Malí'),('Malta'),('Marruecos'),('Mauricio'),('Mauritania'),('México'),('Micronesia'),('Moldavia'),('Mónaco'),
+('Mongolia'),('Mozambique'),('Namibia'),('Nauru'),('Nepal'),('Nicaragua'),('Níger'),('Nigeria'),('Noruega'),('Nueva Guinea'),('Omán'),('Países Bajos'),
+('Pakistán'),('Panamá'),('Paraguay'),('Perú'),('Portugal'),('Puerto Rico'),('Reino Unido'),('República Centroafricana'),('República del Congo'),('República Dominicana'),('Bielorrusia'),('Ucrania'),('Ruanda'),
+('Rumanía'),('Sahara Occidental'),('Samoa'),('San Marino'),('Santa Lucía'),('Santo Tomé y Príncipe'),('Senegal'),('Seychelles'),('Sierra Leona'),('Singapur'),
+('Siria'),('Somalia'),('Sudáfrica'),('Sudán'),('Suazilandia'),('Suecia'),('Suiza'),('Surinam'),('Tailandia'),('Taiwán'),('Tanzania'),('Togo'),('Trinidad y Tobago'),
+('Túnez'),('Turquía'),('Uganda'),('Uruguay'),('Venezuela'),('Vietnam del Norte'),('Yemen'),('Yibuti'),('Yugoslavia'),('Zaire'),('Zambia'),('Zimbabue');
+
 
 COMMENT ON TABLE cat_pais IS 'Catálogo de países de nacionalidad/origen del NNA. Base inicial para NNA migrantes y refugiados conforme al FUD/LGDNNA.';
 
