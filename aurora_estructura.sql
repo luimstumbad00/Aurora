@@ -1,25 +1,26 @@
 -- ============================================================
---  PROYECTO AURORA — SCRIPT UNIFICADO Y DEFINITIVO v6.1 (FNBC)
+--  PROYECTO AURORA — SCRIPT UNIFICADO Y DEFINITIVO v6.2 (FNBC)
 --  PostgreSQL | Arquitecto: Senior DB Architect
 --  Normalización: 1FN ✓  2FN ✓  3FN ✓  FNBC ✓
---  24 relaciones · Modelo Geográfico Híbrido · Catálogos FUD/LGDNNA
+--  25 relaciones · Modelo Geográfico Híbrido · Catálogos FUD/LGDNNA
 -- ============================================================
 --
---  CAMBIOS RESPECTO A v6:
---  [FUD] cat_tipo_contacto      → NUEVO catálogo de tipos de contacto
---  [REF] nna_contacto_adicional → tipo_contacto VARCHAR → id_tipo_contacto INT FK
+--  CAMBIOS RESPECTO A v6.1:
+--  [MED] cat_grupo_sanguineo → NUEVO catálogo de grupos sanguíneos
+--  [REF] nna                 → +id_grupo_sanguineo INT FK (nullable)
 --
---  INTACTO DESDE v6:
+--  INTACTO DESDE v6.1:
 --  entidad_federativa, cat_municipio, direccion, usuario_sistema,
---  todos los demás catálogos, nna, tutor, tablas puente, expediente_seguimiento
+--  todos los demás catálogos, tutor, tablas puente, expediente_seguimiento
 -- ============================================================
 --
 --  HISTORIAL DE VERSIONES:
---  v3 → Catálogos reales (ENUMs eliminados)
---  v4 → Normalización FNBC (cat_municipio nueva, usuario_sistema refactorizado)
---  v5 → Modelo Geográfico Híbrido (asentamiento eliminado, direccion absorbe colonia+CP)
---  v6 → Catálogos FUD/LGDNNA (parentesco, lengua, país, escolaridad, motivo, enfermedad)
+--  v3   → Catálogos reales (ENUMs eliminados)
+--  v4   → Normalización FNBC (cat_municipio nueva, usuario_sistema refactorizado)
+--  v5   → Modelo Geográfico Híbrido (asentamiento eliminado, direccion absorbe colonia+CP)
+--  v6   → Catálogos FUD/LGDNNA (parentesco, lengua, país, escolaridad, motivo, enfermedad)
 --  v6.1 → cat_tipo_contacto normalizado (tipo_contacto VARCHAR → FK)
+--  v6.2 → cat_grupo_sanguineo + id_grupo_sanguineo en nna
 -- ============================================================
 
 
@@ -32,7 +33,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================================
 --  FASE 2: TABLAS DE CATÁLOGO + DATOS POR DEFECTO
---  (12 relaciones — PK atómica → FNBC automática)
+--  (13 relaciones — PK atómica → FNBC automática)
 -- ============================================================
 
 -- ----------------------------------------------------------
@@ -124,16 +125,16 @@ CREATE TABLE cat_parentesco (
 );
 
 INSERT INTO cat_parentesco (nombre) VALUES
-    ('Madre'), ('Padre'), ('Abuela'), ('Abuelo'), ('Bisabuela'), 
-    ('Bisabuelo'), ('Hermana'), ('Hermano'), ('Media hermana'), ('Medio hermano'), 
-    ('Tía'), ('Tío'), ('Prima'), ('Primo'), ('Sobrina'), 
-    ('Sobrino'), ('Madrina'), ('Padrino'), ('Madrastra'), ('Padrastro'), 
-    ('Madre adoptiva'), ('Padre adoptivo'), ('Hermana adoptiva'), ('Hermano adoptivo'), ('Tutor legal'), 
-    ('Tutora legal'), ('Representante legal'), ('Curador'), ('Cuidador principal'), ('Cuidadora principal'), 
-    ('Familia de acogida'), ('Madre de acogida'), ('Padre de acogida'), ('Guardador provisional'), ('Persona responsable'), 
-    ('Persona de confianza'), ('Vecino responsable'), ('Vecina responsable'), ('Amigo responsable'), ('Amiga responsable'), 
-    ('Director de Centro de Asistencia Social'), ('Personal de Centro de Asistencia Social'), ('Trabajador Social'), ('Procurador de Protección'), ('Autoridad Judicial'), 
-    ('Autoridad Administrativa'), ('Agente Migratorio Responsable'), ('Cónyuge'), ('Concubinario'), ('Concubina'), 
+    ('Madre'), ('Padre'), ('Abuela'), ('Abuelo'), ('Bisabuela'),
+    ('Bisabuelo'), ('Hermana'), ('Hermano'), ('Media hermana'), ('Medio hermano'),
+    ('Tía'), ('Tío'), ('Prima'), ('Primo'), ('Sobrina'),
+    ('Sobrino'), ('Madrina'), ('Padrino'), ('Madrastra'), ('Padrastro'),
+    ('Madre adoptiva'), ('Padre adoptivo'), ('Hermana adoptiva'), ('Hermano adoptivo'), ('Tutor legal'),
+    ('Tutora legal'), ('Representante legal'), ('Curador'), ('Cuidador principal'), ('Cuidadora principal'),
+    ('Familia de acogida'), ('Madre de acogida'), ('Padre de acogida'), ('Guardador provisional'), ('Persona responsable'),
+    ('Persona de confianza'), ('Vecino responsable'), ('Vecina responsable'), ('Amigo responsable'), ('Amiga responsable'),
+    ('Director de Centro de Asistencia Social'), ('Personal de Centro de Asistencia Social'), ('Trabajador Social'), ('Procurador de Protección'), ('Autoridad Judicial'),
+    ('Autoridad Administrativa'), ('Agente Migratorio Responsable'), ('Cónyuge'), ('Concubinario'), ('Concubina'),
     ('Sin parentesco'), ('Desconocido'), ('Otro');
 
 COMMENT ON TABLE cat_parentesco IS 'Catálogo de tipos de parentesco o relación entre tutor y NNA conforme al FUD/LGDNNA.';
@@ -147,14 +148,12 @@ CREATE TABLE cat_lengua (
 );
 
 INSERT INTO cat_lengua (nombre) VALUES
-('Akateko'),('Amuzgo'),('Awakateko'),('Ayapaneco'),('Chatino'),('Chichimeca Jonaz'),('Chinanteco'),('Chocholteco'),('Chol'),('Chontal de Oaxaca'),('Chontal de Tabasco'),
-('Chuj'),('Cochimi'),('Cora'),('Cuicateco'),('Guarijio'),('Huave'),('Huichol'),('Ixcateco'),('Ixil'),('Jacalteko'),('Kaqchikel'),('Kickapoo'),('Kiche'),
-('Kiliwa'),('Kumiai'),('Lacandon'),('Mam'),('Mateo'),('Matlatzinca'),('Maya Yucateco'),('Mazahua'),('Mazateco'),('Mixe'),('Mixteco'),('Nahuatl'),('Oluteco'),
-('Opata'),('Otomi'),('Paipai'),('Pame'),('Papago'),('Pima'),('Popoloca'),('Popoluca'),('Popoluca de la Sierra'),('Qanjobal'),('Qeqchi'),('Qatok'),
-('Sakapulteko'),('Sayulteco'),('Seri'),('Sipakapense'),('Tarahumara'),('Tarasco Purepecha'),('Teko'),('Tektiteko'),('Tepehua'),('Tepehuano del Norte'),('Tepehuano del Sur'),
-('Texistepequeño'),('Tlapaneco Mephaa'),('Tlahuica'),('Totonaco'),('Triqui'),('Tseltal'),('Tsotsil'),('Uspanteko'),('Yaqui'),('Zapoteco'),('Zoque'),
-('Zoque');
-
+    ('Akateko'),('Amuzgo'),('Awakateko'),('Ayapaneco'),('Chatino'),('Chichimeca Jonaz'),('Chinanteco'),('Chocholteco'),('Chol'),('Chontal de Oaxaca'),('Chontal de Tabasco'),
+    ('Chuj'),('Cochimi'),('Cora'),('Cuicateco'),('Guarijio'),('Huave'),('Huichol'),('Ixcateco'),('Ixil'),('Jacalteko'),('Kaqchikel'),('Kickapoo'),('Kiche'),
+    ('Kiliwa'),('Kumiai'),('Lacandon'),('Mam'),('Mateo'),('Matlatzinca'),('Maya Yucateco'),('Mazahua'),('Mazateco'),('Mixe'),('Mixteco'),('Nahuatl'),('Oluteco'),
+    ('Opata'),('Otomi'),('Paipai'),('Pame'),('Papago'),('Pima'),('Popoloca'),('Popoluca'),('Popoluca de la Sierra'),('Qanjobal'),('Qeqchi'),('Qatok'),
+    ('Sakapulteko'),('Sayulteco'),('Seri'),('Sipakapense'),('Tarahumara'),('Tarasco Purepecha'),('Teko'),('Tektiteko'),('Tepehua'),('Tepehuano del Norte'),('Tepehuano del Sur'),
+    ('Texistepequeño'),('Tlapaneco Mephaa'),('Tlahuica'),('Totonaco'),('Triqui'),('Tseltal'),('Tsotsil'),('Uspanteko'),('Yaqui'),('Zapoteco'),('Zoque');
 
 COMMENT ON TABLE cat_lengua IS 'Catálogo de lenguas habladas/señadas por NNA conforme al FUD/LGDNNA. Incluye lenguas indígenas nacionales y LSM.';
 
@@ -167,20 +166,19 @@ CREATE TABLE cat_pais (
 );
 
 INSERT INTO cat_pais (nombre) VALUES
-('Afghanistan'),('Albania'),('Alemania'),('Andorra'),('Angola'),('Argentina'),('Australia'),('Austria'),('Bahamas'),('Baréin'),('Barbados'),('Bélgica'),
-('Belice'),('Benín'),('Bután'),('Bolivia'),('Botsuana'),('Brasil'),('Bulgaria'),('Burkina Faso'),('Burundi'),('Cabo Verde'),('Camboya'),('Camerún'),('Canadá'),
-('Catar'),('Chad'),('Chile'),('China'),('Chipre'),('Ciudad del Vaticano'),('Colombia'),('Comoras'),('Corea del Norte'),('Corea del Sur'),('Costa de Marfil'),
-('Costa Rica'),('Cuba'),('Dinamarca'),('Dominica'),('Ecuador'),('Egipto'),('El Salvador'),('Emiratos Árabes Unidos'),('Eslovaquia'),('Eslovenia'),('España'),
-('Estonia'),('Etiopía'),('Fiyi'),('Filipinas'),('Finlandia'),('Francia'),('Gabón'),('Gambia'),('Ghana'),('Granada'),('Grecia'),('Guinea'),('Guinea Ecuatorial'),('Guinea-Bisau'),
-('Guyana'),('Guyana Británica'),('Haití'),('Honduras'),('Hungría'),('India'),('Indonesia'),('Irak'),('Irán'),('Irlanda'),('Islandia'),('Israel'),('Islas Salomón'),
-('Italia'),('Jamaica'),('Japón'),('Jordania'),('Kenia'),('Kirguistán'),('Kuwait'),('Laos'),('Lesoto'),('Líbano'),('Liberia'),('Liechtenstein'),('Libia'),
-('Lituania'),('Luxemburgo'),('Macedonia'),('Malaui'),('Malasia'),('Maldivas'),('Malí'),('Malta'),('Marruecos'),('Mauricio'),('Mauritania'),('México'),('Micronesia'),('Moldavia'),('Mónaco'),
-('Mongolia'),('Mozambique'),('Namibia'),('Nauru'),('Nepal'),('Nicaragua'),('Níger'),('Nigeria'),('Noruega'),('Nueva Guinea'),('Omán'),('Países Bajos'),
-('Pakistán'),('Panamá'),('Paraguay'),('Perú'),('Portugal'),('Puerto Rico'),('Reino Unido'),('República Centroafricana'),('República del Congo'),('República Dominicana'),('Bielorrusia'),('Ucrania'),('Ruanda'),
-('Rumanía'),('Sahara Occidental'),('Samoa'),('San Marino'),('Santa Lucía'),('Santo Tomé y Príncipe'),('Senegal'),('Seychelles'),('Sierra Leona'),('Singapur'),
-('Siria'),('Somalia'),('Sudáfrica'),('Sudán'),('Suazilandia'),('Suecia'),('Suiza'),('Surinam'),('Tailandia'),('Taiwán'),('Tanzania'),('Togo'),('Trinidad y Tobago'),
-('Túnez'),('Turquía'),('Uganda'),('Uruguay'),('Venezuela'),('Vietnam del Norte'),('Yemen'),('Yibuti'),('Yugoslavia'),('Zaire'),('Zambia'),('Zimbabue');
-
+    ('Afghanistan'),('Albania'),('Alemania'),('Andorra'),('Angola'),('Argentina'),('Australia'),('Austria'),('Bahamas'),('Baréin'),('Barbados'),('Bélgica'),
+    ('Belice'),('Benín'),('Bután'),('Bolivia'),('Botsuana'),('Brasil'),('Bulgaria'),('Burkina Faso'),('Burundi'),('Cabo Verde'),('Camboya'),('Camerún'),('Canadá'),
+    ('Catar'),('Chad'),('Chile'),('China'),('Chipre'),('Ciudad del Vaticano'),('Colombia'),('Comoras'),('Corea del Norte'),('Corea del Sur'),('Costa de Marfil'),
+    ('Costa Rica'),('Cuba'),('Dinamarca'),('Dominica'),('Ecuador'),('Egipto'),('El Salvador'),('Emiratos Árabes Unidos'),('Eslovaquia'),('Eslovenia'),('España'),
+    ('Estonia'),('Etiopía'),('Fiyi'),('Filipinas'),('Finlandia'),('Francia'),('Gabón'),('Gambia'),('Ghana'),('Granada'),('Grecia'),('Guinea'),('Guinea Ecuatorial'),('Guinea-Bisau'),
+    ('Guyana'),('Guyana Británica'),('Haití'),('Honduras'),('Hungría'),('India'),('Indonesia'),('Irak'),('Irán'),('Irlanda'),('Islandia'),('Israel'),('Islas Salomón'),
+    ('Italia'),('Jamaica'),('Japón'),('Jordania'),('Kenia'),('Kirguistán'),('Kuwait'),('Laos'),('Lesoto'),('Líbano'),('Liberia'),('Liechtenstein'),('Libia'),
+    ('Lituania'),('Luxemburgo'),('Macedonia'),('Malaui'),('Malasia'),('Maldivas'),('Malí'),('Malta'),('Marruecos'),('Mauricio'),('Mauritania'),('México'),('Micronesia'),('Moldavia'),('Mónaco'),
+    ('Mongolia'),('Mozambique'),('Namibia'),('Nauru'),('Nepal'),('Nicaragua'),('Níger'),('Nigeria'),('Noruega'),('Nueva Guinea'),('Omán'),('Países Bajos'),
+    ('Pakistán'),('Panamá'),('Paraguay'),('Perú'),('Portugal'),('Puerto Rico'),('Reino Unido'),('República Centroafricana'),('República del Congo'),('República Dominicana'),('Bielorrusia'),('Ucrania'),('Ruanda'),
+    ('Rumanía'),('Sahara Occidental'),('Samoa'),('San Marino'),('Santa Lucía'),('Santo Tomé y Príncipe'),('Senegal'),('Seychelles'),('Sierra Leona'),('Singapur'),
+    ('Siria'),('Somalia'),('Sudáfrica'),('Sudán'),('Suazilandia'),('Suecia'),('Suiza'),('Surinam'),('Tailandia'),('Taiwán'),('Tanzania'),('Togo'),('Trinidad y Tobago'),
+    ('Túnez'),('Turquía'),('Uganda'),('Uruguay'),('Venezuela'),('Vietnam del Norte'),('Yemen'),('Yibuti'),('Yugoslavia'),('Zaire'),('Zambia'),('Zimbabue');
 
 COMMENT ON TABLE cat_pais IS 'Catálogo de países de nacionalidad/origen del NNA. Base inicial para NNA migrantes y refugiados conforme al FUD/LGDNNA.';
 
@@ -212,26 +210,25 @@ CREATE TABLE cat_motivo_ingreso (
 );
 
 INSERT INTO cat_motivo_ingreso (nombre) VALUES
-    ('Violencia física'), ('Violencia psicológica'), ('Violencia emocional'), ('Violencia sexual'), ('Violencia familiar'), 
-    ('Violencia comunitaria'), ('Violencia escolar'), ('Bullying'), ('Ciberacoso'), ('Negligencia'), 
-    ('Omisión de cuidados'), ('Abandono'), ('Maltrato infantil'), ('Castigo corporal'), ('Explotación laboral'), 
-    ('Explotación sexual'), ('Trata de personas'), ('Trabajo infantil'), ('Mendicidad forzada'), ('Reclutamiento por grupos delictivos'), 
-    ('Riesgo por delincuencia organizada'), ('Situación de calle'), ('Pobreza extrema'), ('Carencia de vivienda'), ('Carencia alimentaria'), 
-    ('Desintegración familiar'), ('Separación familiar'), ('Conflictos familiares graves'), ('Orfandad'), ('Fallecimiento de tutor'), 
-    ('Fallecimiento de ambos padres'), ('Migración accompagnée'), ('Migración no acompañada'), ('Niña, niño o adolescente refugiado'), ('Solicitante de asilo'), 
-    ('Desplazamiento forzado'), ('Repatriación'), ('Retorno asistido'), ('Víctima de discriminación'), ('Discriminación por discapacidad'), 
-    ('Discriminación étnica'), ('Discriminación lingüística'), ('Discriminación por nacionalidad'), ('Conflicto con la ley'), ('Proceso judicial en curso'), 
-    ('Medidas de protección judicial'), ('Consumo de alcohol'), ('Consumo de drogas'), ('Riesgo de adicciones'), ('Problemas de salud mental'), 
-    ('Intento de autolesión'), ('Conducta suicida'), ('Discapacidad sin red de apoyo'), ('Enfermedad crónica sin cuidados adecuados'), ('Emergencia médica'), 
-    ('Canalización por escuela'), ('Canalización por hospital'), ('Canalización por Ministerio Público'), ('Canalización por DIF'), ('Canalización por Procuraduría de Protección'), 
-    ('Canalización por autoridad migratoria'), ('Canalización por autoridad judicial'), ('Solicitud voluntaria de protección'), ('Reintegración familiar'), ('Seguimiento de caso'), 
+    ('Violencia física'), ('Violencia psicológica'), ('Violencia emocional'), ('Violencia sexual'), ('Violencia familiar'),
+    ('Violencia comunitaria'), ('Violencia escolar'), ('Bullying'), ('Ciberacoso'), ('Negligencia'),
+    ('Omisión de cuidados'), ('Abandono'), ('Maltrato infantil'), ('Castigo corporal'), ('Explotación laboral'),
+    ('Explotación sexual'), ('Trata de personas'), ('Trabajo infantil'), ('Mendicidad forzada'), ('Reclutamiento por grupos delictivos'),
+    ('Riesgo por delincuencia organizada'), ('Situación de calle'), ('Pobreza extrema'), ('Carencia de vivienda'), ('Carencia alimentaria'),
+    ('Desintegración familiar'), ('Separación familiar'), ('Conflictos familiares graves'), ('Orfandad'), ('Fallecimiento de tutor'),
+    ('Fallecimiento de ambos padres'), ('Migración accompagnée'), ('Migración no acompañada'), ('Niña, niño o adolescente refugiado'), ('Solicitante de asilo'),
+    ('Desplazamiento forzado'), ('Repatriación'), ('Retorno asistido'), ('Víctima de discriminación'), ('Discriminación por discapacidad'),
+    ('Discriminación étnica'), ('Discriminación lingüística'), ('Discriminación por nacionalidad'), ('Conflicto con la ley'), ('Proceso judicial en curso'),
+    ('Medidas de protección judicial'), ('Consumo de alcohol'), ('Consumo de drogas'), ('Riesgo de adicciones'), ('Problemas de salud mental'),
+    ('Intento de autolesión'), ('Conducta suicida'), ('Discapacidad sin red de apoyo'), ('Enfermedad crónica sin cuidados adecuados'), ('Emergencia médica'),
+    ('Canalización por escuela'), ('Canalización por hospital'), ('Canalización por Ministerio Público'), ('Canalización por DIF'), ('Canalización por Procuraduría de Protección'),
+    ('Canalización por autoridad migratoria'), ('Canalización por autoridad judicial'), ('Solicitud voluntaria de protección'), ('Reintegración familiar'), ('Seguimiento de caso'),
     ('Medida especial de protección'), ('Riesgo social'), ('Riesgo comunitario'), ('Otro');
 
 COMMENT ON TABLE cat_motivo_ingreso IS 'Catálogo de motivos de ingreso del NNA al sistema de protección conforme al FUD/LGDNNA.';
 
 -- ----------------------------------------------------------
 --  2K. cat_enfermedad
---  Estructura especial: incluye código CIE-10
 -- ----------------------------------------------------------
 CREATE TABLE cat_enfermedad (
     id_enfermedad   SERIAL          PRIMARY KEY,
@@ -243,14 +240,12 @@ INSERT INTO cat_enfermedad (codigo_cie, nombre) VALUES
     ('J45',   'Asma'),
     ('F84.0', 'Trastorno del espectro autista');
 
-COMMENT ON TABLE  cat_enfermedad            IS 'Catálogo de enfermedades con código CIE-10. Preinsertados 2 registros de ejemplo; diseñado para importación masiva del catálogo CIE-10 completo.';
+COMMENT ON TABLE  cat_enfermedad            IS 'Catálogo de enfermedades con código CIE-10. Diseñado para importación masiva del catálogo CIE-10 completo.';
 COMMENT ON COLUMN cat_enfermedad.codigo_cie IS 'Código CIE-10. UNIQUE y opcional para enfermedades sin código asignado.';
 COMMENT ON COLUMN cat_enfermedad.nombre     IS 'Nombre clínico oficial de la enfermedad o diagnóstico.';
 
 -- ----------------------------------------------------------
---  2L. cat_tipo_contacto  ← NUEVO (v6.1)
---  DF: {id} → {nombre}  |  FNBC ✓
---  Normaliza el campo tipo_contacto VARCHAR de nna_contacto_adicional
+--  2L. cat_tipo_contacto
 -- ----------------------------------------------------------
 CREATE TABLE cat_tipo_contacto (
     id      SERIAL          PRIMARY KEY,
@@ -270,7 +265,34 @@ INSERT INTO cat_tipo_contacto (nombre) VALUES
     ('Teléfono de Albergue / Refugio'),
     ('Enlace Institucional TS');
 
-COMMENT ON TABLE cat_tipo_contacto IS 'v6.1: Catálogo de tipos de contacto alternativo del NNA. Normaliza tipo_contacto VARCHAR en nna_contacto_adicional.';
+COMMENT ON TABLE cat_tipo_contacto IS 'Catálogo de tipos de contacto alternativo del NNA. Normaliza tipo_contacto VARCHAR en nna_contacto_adicional.';
+
+-- ----------------------------------------------------------
+--  2M. cat_grupo_sanguineo  ← NUEVO (v6.2)
+--  Sistema ABO + factor Rh (8 grupos estándar)
+--  + 2 grupos especiales reconocidos clínicamente
+--  + 'Desconocido' para registro sin dato confirmado
+--  DF: {id} → {nombre}  |  FNBC ✓
+-- ----------------------------------------------------------
+CREATE TABLE cat_grupo_sanguineo (
+    id      SERIAL          PRIMARY KEY,
+    nombre  VARCHAR(10)     NOT NULL UNIQUE
+);
+
+INSERT INTO cat_grupo_sanguineo (nombre) VALUES
+    ('A+'),
+    ('A-'),
+    ('B+'),
+    ('B-'),
+    ('AB+'),
+    ('AB-'),
+    ('O+'),
+    ('O-'),
+    ('Bombay'),
+    ('Rh nulo'),
+    ('Desconocido');
+
+COMMENT ON TABLE cat_grupo_sanguineo IS 'v6.2: Catálogo de grupos sanguíneos sistema ABO + factor Rh. Incluye grupos especiales (Bombay, Rh nulo) y valor Desconocido para registro sin dato confirmado.';
 
 
 -- ============================================================
@@ -288,38 +310,13 @@ CREATE TABLE entidad_federativa (
 );
 
 INSERT INTO entidad_federativa (nom_ent) VALUES
-    ('Aguascalientes'),
-    ('Baja California'),
-    ('Baja California Sur'),
-    ('Campeche'),
-    ('Chiapas'),
-    ('Chihuahua'),
-    ('Ciudad de México'),
-    ('Coahuila'),
-    ('Colima'),
-    ('Durango'),
-    ('Guanajuato'),
-    ('Guerrero'),
-    ('Hidalgo'),
-    ('Jalisco'),
-    ('México'),
-    ('Michoacán'),
-    ('Morelos'),
-    ('Nayarit'),
-    ('Nuevo León'),
-    ('Oaxaca'),
-    ('Puebla'),
-    ('Querétaro'),
-    ('Quintana Roo'),
-    ('San Luis Potosí'),
-    ('Sinaloa'),
-    ('Sonora'),
-    ('Tabasco'),
-    ('Tamaulipas'),
-    ('Tlaxcala'),
-    ('Veracruz'),
-    ('Yucatán'),
-    ('Zacatecas');
+    ('Aguascalientes'),('Baja California'),('Baja California Sur'),('Campeche'),('Chiapas'),
+    ('Chihuahua'),('Ciudad de México'),('Coahuila'),('Colima'),('Durango'),
+    ('Guanajuato'),('Guerrero'),('Hidalgo'),('Jalisco'),('México'),
+    ('Michoacán'),('Morelos'),('Nayarit'),('Nuevo León'),('Oaxaca'),
+    ('Puebla'),('Querétaro'),('Quintana Roo'),('San Luis Potosí'),('Sinaloa'),
+    ('Sonora'),('Tabasco'),('Tamaulipas'),('Tlaxcala'),('Veracruz'),
+    ('Yucatán'),('Zacatecas');
 
 COMMENT ON TABLE entidad_federativa IS 'Catálogo de entidades federativas de México. Extensible para países extranjeros (NNA migrantes/refugiados).';
 
@@ -405,7 +402,7 @@ COMMENT ON COLUMN usuario_sistema.estado              IS 'ACTIVO | INACTIVO | SU
 -- ============================================================
 
 -- ----------------------------------------------------------
---  5A. TUTOR  (sin cambios en v6.1)
+--  5A. TUTOR  (sin cambios en v6.2)
 -- ----------------------------------------------------------
 CREATE TABLE tutor (
     id_tutor            SERIAL          PRIMARY KEY,
@@ -426,7 +423,9 @@ COMMENT ON COLUMN tutor.es_adulto_mayor IS 'TRUE si el tutor tiene 60 años o m�
 
 -- ----------------------------------------------------------
 --  5B. NNA — Niñas, Niños y Adolescentes (FUD/LGDNNA)
+--  v6.2: +id_grupo_sanguineo FK (nullable)
 --  DF: {id_nna} → {todos los atributos}  |  FNBC ✓
+--  id_grupo_sanguineo depende únicamente de id_nna → sin transitivas
 -- ----------------------------------------------------------
 CREATE TABLE nna (
     id_nna              SERIAL          PRIMARY KEY,
@@ -439,6 +438,8 @@ CREATE TABLE nna (
     id_sexo             INT             NOT NULL REFERENCES cat_sexo(id)              ON DELETE RESTRICT,
     id_escolaridad      INT             REFERENCES cat_escolaridad(id)                ON DELETE RESTRICT,
     id_motivo_ingreso   INT             REFERENCES cat_motivo_ingreso(id)             ON DELETE RESTRICT,
+    -- v6.2: grupo sanguíneo del NNA
+    id_grupo_sanguineo  INT             REFERENCES cat_grupo_sanguineo(id)            ON DELETE RESTRICT,
     dir_actual          INT             REFERENCES direccion(id_dir)                  ON DELETE SET NULL,
     luga_nac_nna        INT             REFERENCES entidad_federativa(id_ent)         ON DELETE SET NULL,
     situacion_calle     BOOLEAN         NOT NULL DEFAULT FALSE,
@@ -452,23 +453,24 @@ CREATE TABLE nna (
     CONSTRAINT chk_fecha_nac_nna CHECK (fecha_nacimiento <= CURRENT_DATE)
 );
 
-COMMENT ON TABLE  nna                    IS 'Registro central de NNA conforme al FUD y la LGDNNA.';
-COMMENT ON COLUMN nna.folio_nna          IS 'Folio único de ingreso asignado por el sistema o autoridad competente.';
-COMMENT ON COLUMN nna.id_sexo            IS 'FK a cat_sexo.';
-COMMENT ON COLUMN nna.id_escolaridad     IS 'FK a cat_escolaridad. Nivel educativo actual del NNA conforme al FUD/LGDNNA.';
-COMMENT ON COLUMN nna.id_motivo_ingreso  IS 'FK a cat_motivo_ingreso. Causa principal de ingreso al sistema de protección conforme al FUD/LGDNNA.';
-COMMENT ON COLUMN nna.dir_actual         IS 'FK a direccion. Domicilio actual del NNA.';
-COMMENT ON COLUMN nna.luga_nac_nna       IS 'FK a entidad_federativa. Entidad o país de nacimiento del NNA.';
-COMMENT ON COLUMN nna.situacion_calle    IS 'TRUE si el NNA se encuentra o encontraba en situación de calle.';
-COMMENT ON COLUMN nna.es_migrante        IS 'TRUE si el NNA tiene condición migratoria activa o reconocida.';
-COMMENT ON COLUMN nna.es_refugiado       IS 'TRUE si cuenta con reconocimiento de condición de refugiado.';
-COMMENT ON COLUMN nna.poblacion_indigena IS 'TRUE si pertenece a una comunidad o pueblo indígena.';
-COMMENT ON COLUMN nna.registrado_por     IS 'FK al usuario que realizó el registro inicial del NNA.';
+COMMENT ON TABLE  nna                      IS 'Registro central de NNA conforme al FUD y la LGDNNA. v6.2: +id_grupo_sanguineo.';
+COMMENT ON COLUMN nna.folio_nna            IS 'Folio único de ingreso asignado por el sistema o autoridad competente.';
+COMMENT ON COLUMN nna.id_sexo              IS 'FK a cat_sexo.';
+COMMENT ON COLUMN nna.id_escolaridad       IS 'FK a cat_escolaridad. Nivel educativo actual del NNA conforme al FUD/LGDNNA.';
+COMMENT ON COLUMN nna.id_motivo_ingreso    IS 'FK a cat_motivo_ingreso. Causa principal de ingreso al sistema de protección conforme al FUD/LGDNNA.';
+COMMENT ON COLUMN nna.id_grupo_sanguineo   IS 'v6.2: FK a cat_grupo_sanguineo. Nullable: se registra cuando el dato está disponible. Usar Desconocido si se ingresa sin confirmación.';
+COMMENT ON COLUMN nna.dir_actual           IS 'FK a direccion. Domicilio actual del NNA.';
+COMMENT ON COLUMN nna.luga_nac_nna         IS 'FK a entidad_federativa. Entidad o país de nacimiento del NNA.';
+COMMENT ON COLUMN nna.situacion_calle      IS 'TRUE si el NNA se encuentra o encontraba en situación de calle.';
+COMMENT ON COLUMN nna.es_migrante          IS 'TRUE si el NNA tiene condición migratoria activa o reconocida.';
+COMMENT ON COLUMN nna.es_refugiado         IS 'TRUE si cuenta con reconocimiento de condición de refugiado.';
+COMMENT ON COLUMN nna.poblacion_indigena   IS 'TRUE si pertenece a una comunidad o pueblo indígena.';
+COMMENT ON COLUMN nna.registrado_por       IS 'FK al usuario que realizó el registro inicial del NNA.';
 
 
 -- ============================================================
 --  FASE 6: RELACIONES Y LISTAS MULTIVALORADAS
---  (6 relaciones)
+--  (6 relaciones — sin cambios en v6.2)
 -- ============================================================
 
 -- ----------------------------------------------------------
@@ -499,7 +501,7 @@ CREATE TABLE nna_nacionalidad (
 );
 
 COMMENT ON TABLE  nna_nacionalidad         IS 'Nacionalidades del NNA; admite doble o múltiple nacionalidad.';
-COMMENT ON COLUMN nna_nacionalidad.id_pais IS 'FK a cat_pais. Reemplaza pais_nacionalidad VARCHAR (v6).';
+COMMENT ON COLUMN nna_nacionalidad.id_pais IS 'FK a cat_pais.';
 
 -- ----------------------------------------------------------
 --  6C. DISCAPACIDADES del NNA
@@ -531,27 +533,25 @@ CREATE TABLE nna_lengua (
 );
 
 COMMENT ON TABLE  nna_lengua                     IS 'Lenguas habladas/señadas por el NNA. PK compuesta: (id_nna, id_lengua).';
-COMMENT ON COLUMN nna_lengua.id_lengua           IS 'FK a cat_lengua. Reemplaza nombre_lengua VARCHAR (v6).';
+COMMENT ON COLUMN nna_lengua.id_lengua           IS 'FK a cat_lengua.';
 COMMENT ON COLUMN nna_lengua.es_preferente       IS 'TRUE si esta es la lengua de comunicación principal del NNA.';
 COMMENT ON COLUMN nna_lengua.requiere_interprete IS 'TRUE si el NNA necesita intérprete para la atención institucional.';
 
 -- ----------------------------------------------------------
---  6E. CONTACTOS ADICIONALES del NNA  (v6.1: tipo_contacto → FK)
---  PK atómica (id_contacto)  |  FNBC ✓
+--  6E. CONTACTOS ADICIONALES del NNA
 -- ----------------------------------------------------------
 CREATE TABLE nna_contacto_adicional (
     id_contacto         SERIAL       PRIMARY KEY,
-    id_nna              INT          NOT NULL REFERENCES nna(id_nna)              ON DELETE CASCADE,
-    -- v6.1: texto libre reemplazado por FK a catálogo
-    id_tipo_contacto    INT          NOT NULL REFERENCES cat_tipo_contacto(id)    ON DELETE RESTRICT,
+    id_nna              INT          NOT NULL REFERENCES nna(id_nna)           ON DELETE CASCADE,
+    id_tipo_contacto    INT          NOT NULL REFERENCES cat_tipo_contacto(id) ON DELETE RESTRICT,
     valor_contacto      VARCHAR(255) NOT NULL,
     descripcion         VARCHAR(255),
 
     CONSTRAINT uq_nna_contacto UNIQUE (id_nna, id_tipo_contacto, valor_contacto)
 );
 
-COMMENT ON TABLE  nna_contacto_adicional              IS 'Medios de contacto alternativos del NNA. v6.1: tipo_contacto VARCHAR → id_tipo_contacto FK a cat_tipo_contacto.';
-COMMENT ON COLUMN nna_contacto_adicional.id_tipo_contacto IS 'v6.1: FK a cat_tipo_contacto. Reemplaza tipo_contacto VARCHAR para normalizar el medio de contacto.';
+COMMENT ON TABLE  nna_contacto_adicional                  IS 'Medios de contacto alternativos del NNA.';
+COMMENT ON COLUMN nna_contacto_adicional.id_tipo_contacto IS 'FK a cat_tipo_contacto.';
 COMMENT ON COLUMN nna_contacto_adicional.valor_contacto   IS 'Valor del contacto: número, URL, usuario, etc.';
 COMMENT ON COLUMN nna_contacto_adicional.descripcion      IS 'Nota libre adicional (ej: "Facebook de la abuela materna").';
 
@@ -616,10 +616,11 @@ CREATE INDEX idx_usuario_rol        ON usuario_sistema(id_rol);
 CREATE INDEX idx_usuario_estado     ON usuario_sistema(estado);
 CREATE INDEX idx_usuario_mun_lab    ON usuario_sistema(id_municipio_labora);
 
--- nna
+-- nna (v6.2: +idx_nna_sangre)
 CREATE INDEX idx_nna_sexo           ON nna(id_sexo);
 CREATE INDEX idx_nna_escolaridad    ON nna(id_escolaridad);
 CREATE INDEX idx_nna_motivo         ON nna(id_motivo_ingreso);
+CREATE INDEX idx_nna_sangre         ON nna(id_grupo_sanguineo);
 CREATE INDEX idx_nna_dir_actual     ON nna(dir_actual);
 CREATE INDEX idx_nna_luga_nac       ON nna(luga_nac_nna);
 CREATE INDEX idx_nna_fecha_nac      ON nna(fecha_nacimiento);
@@ -647,65 +648,66 @@ CREATE INDEX idx_municipio_ent      ON cat_municipio(id_ent);
 
 
 -- ============================================================
---  RESUMEN DE RELACIONES FNBC — 24 TABLAS (v6.1)
+--  RESUMEN DE RELACIONES FNBC — 25 TABLAS (v6.2)
 -- ============================================================
 --
---  CATÁLOGOS (12)
---    cat_rol_sistema        ( id, nombre )
---    cat_sexo               ( id, nombre )
---    cat_tipo_discapacidad  ( id, nombre )
---    cat_grado_dependencia  ( id, nombre )
---    cat_nivel_competencia  ( id, nombre )
---    cat_parentesco         ( id, nombre )
---    cat_lengua             ( id, nombre )
---    cat_pais               ( id, nombre )
---    cat_escolaridad        ( id, nombre )
---    cat_motivo_ingreso     ( id, nombre )
---    cat_enfermedad         ( id_enfermedad, codigo_cie, nombre )
---    cat_tipo_contacto *v6.1*( id, nombre )
+--  CATÁLOGOS (13)
+--    cat_rol_sistema          ( id, nombre )
+--    cat_sexo                 ( id, nombre )
+--    cat_tipo_discapacidad    ( id, nombre )
+--    cat_grado_dependencia    ( id, nombre )
+--    cat_nivel_competencia    ( id, nombre )
+--    cat_parentesco           ( id, nombre )
+--    cat_lengua               ( id, nombre )
+--    cat_pais                 ( id, nombre )
+--    cat_escolaridad          ( id, nombre )
+--    cat_motivo_ingreso       ( id, nombre )
+--    cat_enfermedad           ( id_enfermedad, codigo_cie, nombre )
+--    cat_tipo_contacto        ( id, nombre )
+--    cat_grupo_sanguineo *v6.2*( id, nombre )
 --
 --  GEOGRAFÍA HÍBRIDA (3)  — INTACTO DESDE v5
---    entidad_federativa     ( id_ent, nom_ent )
---    cat_municipio          ( id_municipio, nom_mun, id_ent )
---    direccion              ( id_dir, calle_dir, no_ext_dir, no_int_dir,
---                             ref_dir, colonia_abierta, codigo_postal,
---                             id_municipio )
+--    entidad_federativa       ( id_ent, nom_ent )
+--    cat_municipio            ( id_municipio, nom_mun, id_ent )
+--    direccion                ( id_dir, calle_dir, no_ext_dir, no_int_dir,
+--                               ref_dir, colonia_abierta, codigo_postal,
+--                               id_municipio )
 --
 --  PLATAFORMA (1)  — INTACTO DESDE v5
---    usuario_sistema        ( id_usuario, curp, rfc, nombre, apellido_paterno,
---                             apellido_materno, correo, contrasena,
---                             id_rol, id_municipio_labora,
---                             estado, fecha_registro )
+--    usuario_sistema          ( id_usuario, curp, rfc, nombre, apellido_paterno,
+--                               apellido_materno, correo, contrasena,
+--                               id_rol, id_municipio_labora,
+--                               estado, fecha_registro )
 --
 --  ENTIDADES CENTRALES (2)
---    tutor                  ( id_tutor, curp_tutor, nombre, primer_apellido,
---                             segundo_apellido, telefono, correo, es_adulto_mayor )
---    nna                    ( id_nna, folio_nna, nombre, prim_ap, seg_ap,
---                             fecha_nacimiento, curp, id_sexo,
---                             id_escolaridad, id_motivo_ingreso,
---                             dir_actual, luga_nac_nna,
---                             situacion_calle, es_migrante, es_refugiado,
---                             poblacion_indigena, fecha_registro, registrado_por )
+--    tutor                    ( id_tutor, curp_tutor, nombre, primer_apellido,
+--                               segundo_apellido, telefono, correo, es_adulto_mayor )
+--    nna                *v6.2*( id_nna, folio_nna, nombre, prim_ap, seg_ap,
+--                               fecha_nacimiento, curp, id_sexo,
+--                               id_escolaridad, id_motivo_ingreso,
+--                               id_grupo_sanguineo,
+--                               dir_actual, luga_nac_nna,
+--                               situacion_calle, es_migrante, es_refugiado,
+--                               poblacion_indigena, fecha_registro, registrado_por )
 --
 --  MULTIVALORADAS (6)
---    nna_tutor              ( id_nna, id_tutor, id_parentesco,
---                             es_contacto_ppal, fecha_vinculacion )
---    nna_nacionalidad       ( id_nna, id_pais )
---    nna_discapacidad       ( id_nna, id_tipo_discapacidad, id_grado_dependencia,
---                             diagnostico_medico_oficial, descripcion_adicional )
---    nna_lengua             ( id_nna, id_lengua, es_preferente,
---                             id_nivel_competencia, requiere_interprete )
---    nna_contacto_adicional *v6.1*
---                           ( id_contacto, id_nna, id_tipo_contacto,
---                             valor_contacto, descripcion )
---    nna_enfermedad         ( id_nna, id_enfermedad,
---                             bajo_tratamiento, observaciones )
+--    nna_tutor                ( id_nna, id_tutor, id_parentesco,
+--                               es_contacto_ppal, fecha_vinculacion )
+--    nna_nacionalidad         ( id_nna, id_pais )
+--    nna_discapacidad         ( id_nna, id_tipo_discapacidad, id_grado_dependencia,
+--                               diagnostico_medico_oficial, descripcion_adicional )
+--    nna_lengua               ( id_nna, id_lengua, es_preferente,
+--                               id_nivel_competencia, requiere_interprete )
+--    nna_contacto_adicional   ( id_contacto, id_nna, id_tipo_contacto,
+--                               valor_contacto, descripcion )
+--    nna_enfermedad           ( id_nna, id_enfermedad,
+--                               bajo_tratamiento, observaciones )
 --
 --  SEGUIMIENTO (1)
---    expediente_seguimiento ( id_seguimiento, id_nna, id_usuario,
---                             id_area_atencion, fecha_atencion,
---                             notas_evolucion, archivo_adjunto_path )
+--    expediente_seguimiento   ( id_seguimiento, id_nna, id_usuario,
+--                               id_area_atencion, fecha_atencion,
+--                               notas_evolucion, archivo_adjunto_path )
 --
 -- ============================================================
---  FIN DEL SCRIPT — PROYECTO AURORA v6.1 · FNBC · GEO HÍBRIDO · FUD/LGDNNA
+--  FIN DEL SCRIPT — PROYECTO AURORA v6.2 · FNBC · GEO HÍBRIDO · FUD/LGDNNA
 -- ============================================================
