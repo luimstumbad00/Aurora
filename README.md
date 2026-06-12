@@ -95,6 +95,25 @@ CREATE TABLE cat_colonia (
     nombre VARCHAR(100) NOT NULL
 );
 
+CREATE TABLE cat_tipo_contacto (
+    id_tipo_contacto SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT NOT NULL
+);
+
+INSERT INTO cat_tipo_contacto (id_tipo_contacto, nombre, descripcion) VALUES
+(1, 'Teléfono fijo', 'Número de teléfono fijo de casa, trabajo, o algun familiar. 10 digitos.'),
+(2, 'Celular', 'Número de celular del tutor o de algun otro familiar. 10 digitos.'),
+(3, 'Correo', 'Correo al que se pueda enviar documentación, generalmente de un adulto.'),
+(4, 'Instagram', 'Cuenta de red social Instagram en donde se pueda establecer comunicación con la persona.'),
+(5, 'Facebook', 'Cuenta de red social Facebook en donde se pueda establecer comunicación con la persona.'),
+(6, 'LinkedIn', 'Cuenta de red social LinkedIn en donde se pueda establecer comunicación con la persona.'),
+(7, 'Telegram', 'Cuenta de red social Telegram en donde se pueda establecer comunicación con la persona.'),
+(8, 'Caseta Comunitaria', 'Número telefónico de la caseta o espacio central en localidades rurales sin cobertura particular.'),
+(9, 'Red Vecinal / Autoridad Local', 'Contacto con un miembro del comité vecinal, jefe de manzana o líder comunitario para emergencias.'),
+(10, 'Teléfono de Albergue / Refugio', 'Número institucional y extensión del centro de asistencia donde pernocta el NNA.'),
+(11, 'Enlace Institucional TS', 'Contacto del área de Trabajo Social de dependencias homólogas (DIF, SIPINNA) para seguimiento.');
+
 -- 5. USUARIOS
 CREATE TABLE usuario (
     curp VARCHAR(18) PRIMARY KEY,
@@ -150,6 +169,14 @@ CREATE TABLE nna_tutor (
     curp_tutor VARCHAR(18) REFERENCES tutor(curp) ON DELETE CASCADE,
     relacion VARCHAR(50),
     PRIMARY KEY (curp_nna, curp_tutor)
+);
+
+CREATE TABLE persona_contacto_adicional (
+    id_contacto SERIAL PRIMARY KEY,
+    curp VARCHAR(18) REFERENCES persona(curp) ON DELETE CASCADE,
+    id_tipo_contacto INT REFERENCES cat_tipo_contacto(id_tipo_contacto),
+    valor_contacto VARCHAR(255) NOT NULL,
+    descripcion TEXT
 );
 
 -- 7. SALUD E IDIOMAS
