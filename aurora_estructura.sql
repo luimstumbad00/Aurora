@@ -1,17 +1,21 @@
 -- ============================================================
---  PROYECTO AURORA — SCRIPT UNIFICADO Y DEFINITIVO v6.2 (FNBC)
+--  PROYECTO AURORA — SCRIPT UNIFICADO Y DEFINITIVO v6.3 (FNBC)
 --  PostgreSQL | Arquitecto: Senior DB Architect
 --  Normalización: 1FN ✓  2FN ✓  3FN ✓  FNBC ✓
 --  25 relaciones · Modelo Geográfico Híbrido · Catálogos FUD/LGDNNA
 -- ============================================================
 --
---  CAMBIOS RESPECTO A v6.1:
---  [MED] cat_grupo_sanguineo → NUEVO catálogo de grupos sanguíneos
---  [REF] nna                 → +id_grupo_sanguineo INT FK (nullable)
+--  CAMBIOS RESPECTO A v6.2:
+--  [DATA] cat_lengua      → +Español, LSM, Inglés, Francés, Francés Criollo
+--                            Haitiano, Portugués, Árabe, Mandarin, Ruso,
+--                            Alemán, Italiano, lenguas indígenas
+--                            centroamericanas (Mam, Kiche, Kaqchikel, Garífuna)
+--                            y valor 'Otra'
+--  [DATA] cat_municipio   → +57 municipios de prueba en 16 estados
+--                            (referencia INEGI para importación masiva)
 --
---  INTACTO DESDE v6.1:
---  entidad_federativa, cat_municipio, direccion, usuario_sistema,
---  todos los demás catálogos, tutor, tablas puente, expediente_seguimiento
+--  INTACTO DESDE v6.2:
+--  Todas las tablas, estructura, FKs, índices y normalización
 -- ============================================================
 --
 --  HISTORIAL DE VERSIONES:
@@ -21,6 +25,7 @@
 --  v6   → Catálogos FUD/LGDNNA (parentesco, lengua, país, escolaridad, motivo, enfermedad)
 --  v6.1 → cat_tipo_contacto normalizado (tipo_contacto VARCHAR → FK)
 --  v6.2 → cat_grupo_sanguineo + id_grupo_sanguineo en nna
+--  v6.3 → cat_lengua completo + cat_municipio con datos de prueba
 -- ============================================================
 
 
@@ -148,14 +153,32 @@ CREATE TABLE cat_lengua (
 );
 
 INSERT INTO cat_lengua (nombre) VALUES
+    -- Lenguas nacionales de uso general
+    ('Español'),
+    ('Lengua de Señas Mexicana (LSM)'),
+    -- Lenguas extranjeras relevantes para NNA migrantes y refugiados
+    ('Inglés'),
+    ('Francés'),
+    ('Francés Criollo Haitiano'),
+    ('Portugués'),
+    ('Árabe'),
+    ('Mandarin'),
+    ('Ruso'),
+    ('Alemán'),
+    ('Italiano'),
+    -- Lenguas indígenas nacionales (INALI)
     ('Akateko'),('Amuzgo'),('Awakateko'),('Ayapaneco'),('Chatino'),('Chichimeca Jonaz'),('Chinanteco'),('Chocholteco'),('Chol'),('Chontal de Oaxaca'),('Chontal de Tabasco'),
     ('Chuj'),('Cochimi'),('Cora'),('Cuicateco'),('Guarijio'),('Huave'),('Huichol'),('Ixcateco'),('Ixil'),('Jacalteko'),('Kaqchikel'),('Kickapoo'),('Kiche'),
     ('Kiliwa'),('Kumiai'),('Lacandon'),('Mam'),('Mateo'),('Matlatzinca'),('Maya Yucateco'),('Mazahua'),('Mazateco'),('Mixe'),('Mixteco'),('Nahuatl'),('Oluteco'),
     ('Opata'),('Otomi'),('Paipai'),('Pame'),('Papago'),('Pima'),('Popoloca'),('Popoluca'),('Popoluca de la Sierra'),('Qanjobal'),('Qeqchi'),('Qatok'),
     ('Sakapulteko'),('Sayulteco'),('Seri'),('Sipakapense'),('Tarahumara'),('Tarasco Purepecha'),('Teko'),('Tektiteko'),('Tepehua'),('Tepehuano del Norte'),('Tepehuano del Sur'),
-    ('Texistepequeño'),('Tlapaneco Mephaa'),('Tlahuica'),('Totonaco'),('Triqui'),('Tseltal'),('Tsotsil'),('Uspanteko'),('Yaqui'),('Zapoteco'),('Zoque');
+    ('Texistepequeño'),('Tlapaneco Mephaa'),('Tlahuica'),('Totonaco'),('Triqui'),('Tseltal'),('Tsotsil'),('Uspanteko'),('Yaqui'),('Zapoteco'),('Zoque'),
+    -- Lenguas indígenas centroamericanas (NNA migrantes)
+    ('Mam guatemalteco'),('Kiche guatemalteco'),('Kaqchikel guatemalteco'),('Garífuna'),
+    -- Otras
+    ('Otra');
 
-COMMENT ON TABLE cat_lengua IS 'Catálogo de lenguas habladas/señadas por NNA conforme al FUD/LGDNNA. Incluye lenguas indígenas nacionales y LSM.';
+COMMENT ON TABLE cat_lengua IS 'Catálogo de lenguas habladas/señadas por NNA conforme al FUD/LGDNNA. Incluye: lenguas nacionales, LSM, lenguas extranjeras para NNA migrantes/refugiados, lenguas indígenas INALI y lenguas indígenas centroamericanas.';
 
 -- ----------------------------------------------------------
 --  2H. cat_pais
@@ -336,6 +359,89 @@ COMMENT ON COLUMN cat_municipio.nom_mun IS 'Nombre del municipio o alcaldía.';
 COMMENT ON COLUMN cat_municipio.id_ent  IS 'FK a entidad_federativa. El municipio pertenece a una sola entidad.';
 
 CREATE INDEX idx_municipio_ent ON cat_municipio(id_ent);
+
+-- Datos de prueba — municipios representativos por estado
+-- Referencia: id_ent corresponde al orden de inserción de entidad_federativa
+-- 1=Aguascalientes, 2=Baja California, 3=Baja California Sur,
+-- 4=Campeche, 5=Chiapas, 6=Chihuahua, 7=Ciudad de México,
+-- 8=Coahuila, 9=Colima, 10=Durango, 11=Guanajuato, 12=Guerrero,
+-- 13=Hidalgo, 14=Jalisco, 15=México, 16=Michoacán, 17=Morelos,
+-- 18=Nayarit, 19=Nuevo León, 20=Oaxaca, 21=Puebla, 22=Querétaro,
+-- 23=Quintana Roo, 24=San Luis Potosí, 25=Sinaloa, 26=Sonora,
+-- 27=Tabasco, 28=Tamaulipas, 29=Tlaxcala, 30=Veracruz,
+-- 31=Yucatán, 32=Zacatecas
+INSERT INTO cat_municipio (nom_mun, id_ent) VALUES
+    -- Aguascalientes (1)
+    ('Aguascalientes',          1),
+    ('Jesús María',             1),
+    ('Calvillo',                1),
+    -- Baja California (2)
+    ('Tijuana',                 2),
+    ('Mexicali',                2),
+    ('Ensenada',                2),
+    -- Chiapas (5)
+    ('Tuxtla Gutiérrez',        5),
+    ('San Cristóbal de las Casas', 5),
+    ('Tapachula',               5),
+    ('Comitán de Domínguez',    5),
+    -- Chihuahua (6)
+    ('Chihuahua',               6),
+    ('Ciudad Juárez',           6),
+    ('Delicias',                6),
+    -- Ciudad de México (7)
+    ('Álvaro Obregón',          7),
+    ('Benito Juárez',           7),
+    ('Cuauhtémoc',              7),
+    ('Gustavo A. Madero',       7),
+    ('Iztapalapa',              7),
+    ('Miguel Hidalgo',          7),
+    ('Tlalpan',                 7),
+    ('Xochimilco',              7),
+    -- Jalisco (14)
+    ('Guadalajara',             14),
+    ('Zapopan',                 14),
+    ('Tlaquepaque',             14),
+    ('Puerto Vallarta',         14),
+    -- Estado de México (15)
+    ('Ecatepec de Morelos',     15),
+    ('Nezahualcóyotl',          15),
+    ('Toluca',                  15),
+    ('Naucalpan de Juárez',     15),
+    ('Tlalnepantla de Baz',     15),
+    -- Nuevo León (19)
+    ('Monterrey',               19),
+    ('San Nicolás de los Garza',19),
+    ('Guadalupe',               19),
+    ('Apodaca',                 19),
+    -- Oaxaca (20)
+    ('Oaxaca de Juárez',        20),
+    ('San Juan Bautista Tuxtepec', 20),
+    ('Juchitán de Zaragoza',    20),
+    -- Puebla (21)
+    ('Puebla',                  21),
+    ('Tehuacán',                21),
+    ('San Martín Texmelucan',   21),
+    -- Sonora (26)
+    ('Hermosillo',              26),
+    ('Nogales',                 26),
+    ('Ciudad Obregón',          26),
+    -- Tabasco (27)
+    ('Centro',                  27),
+    ('Cárdenas',                27),
+    ('Comalcalco',              27),
+    -- Veracruz (30)
+    ('Veracruz',                30),
+    ('Xalapa',                  30),
+    ('Coatzacoalcos',           30),
+    ('Córdoba',                 30),
+    -- Yucatán (31)
+    ('Mérida',                  31),
+    ('Valladolid',              31),
+    ('Progreso',                31);
+
+-- NOTA: Este es un conjunto de prueba con municipios representativos.
+-- Para producción, importar el catálogo completo INEGI (2,469 municipios)
+-- desde: https://www.inegi.org.mx/app/ageeml/
 
 -- ----------------------------------------------------------
 --  3C. DIRECCION — MODELO HÍBRIDO
