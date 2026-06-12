@@ -1,15 +1,25 @@
 -- ============================================================
---  PROYECTO AURORA — SCRIPT UNIFICADO Y DEFINITIVO v4 (FNBC)
+--  PROYECTO AURORA — SCRIPT UNIFICADO Y DEFINITIVO v6.1 (FNBC)
 --  PostgreSQL | Arquitecto: Senior DB Architect
 --  Normalización: 1FN ✓  2FN ✓  3FN ✓  FNBC ✓
---  18 relaciones · Orden jerárquico (sin errores de FK)
+--  24 relaciones · Modelo Geográfico Híbrido · Catálogos FUD/LGDNNA
 -- ============================================================
 --
---  CAMBIOS RESPECTO A v3:
---  [3FN] cat_municipio       → NUEVA tabla extraída de asentamiento
---  [3FN] asentamiento        → pierde nom_mun e id_ent, gana id_municipio (FK)
---  [3FN] usuario_sistema     → municipio_labora VARCHAR → id_municipio_labora INT FK
---  NOTA: estado (ACTIVO/INACTIVO/SUSPENDIDO) NO es transitivo → se conserva
+--  CAMBIOS RESPECTO A v6:
+--  [FUD] cat_tipo_contacto      → NUEVO catálogo de tipos de contacto
+--  [REF] nna_contacto_adicional → tipo_contacto VARCHAR → id_tipo_contacto INT FK
+--
+--  INTACTO DESDE v6:
+--  entidad_federativa, cat_municipio, direccion, usuario_sistema,
+--  todos los demás catálogos, nna, tutor, tablas puente, expediente_seguimiento
+-- ============================================================
+--
+--  HISTORIAL DE VERSIONES:
+--  v3 → Catálogos reales (ENUMs eliminados)
+--  v4 → Normalización FNBC (cat_municipio nueva, usuario_sistema refactorizado)
+--  v5 → Modelo Geográfico Híbrido (asentamiento eliminado, direccion absorbe colonia+CP)
+--  v6 → Catálogos FUD/LGDNNA (parentesco, lengua, país, escolaridad, motivo, enfermedad)
+--  v6.1 → cat_tipo_contacto normalizado (tipo_contacto VARCHAR → FK)
 -- ============================================================
 
 
@@ -22,7 +32,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================================
 --  FASE 2: TABLAS DE CATÁLOGO + DATOS POR DEFECTO
---  (5 relaciones — PK atómica → FNBC automática)
+--  (12 relaciones — PK atómica → FNBC automática)
 -- ============================================================
 
 -- ----------------------------------------------------------
@@ -105,16 +115,148 @@ INSERT INTO cat_nivel_competencia (nombre) VALUES
 
 COMMENT ON TABLE cat_nivel_competencia IS 'Catálogo de niveles de competencia lingüística oral/señada.';
 
+-- ----------------------------------------------------------
+--  2F. cat_parentesco
+-- ----------------------------------------------------------
+CREATE TABLE cat_parentesco (
+    id      SERIAL          PRIMARY KEY,
+    nombre  VARCHAR(100)    NOT NULL UNIQUE
+);
+
+INSERT INTO cat_parentesco (nombre) VALUES
+    ('Madre'),
+    ('Padre'),
+    ('Abuelo/a'),
+    ('Tío/a'),
+    ('Hermano/a'),
+    ('Tutor Legal'),
+    ('Institución');
+
+COMMENT ON TABLE cat_parentesco IS 'Catálogo de tipos de parentesco o relación entre tutor y NNA conforme al FUD/LGDNNA.';
+
+-- ----------------------------------------------------------
+--  2G. cat_lengua
+-- ----------------------------------------------------------
+CREATE TABLE cat_lengua (
+    id      SERIAL          PRIMARY KEY,
+    nombre  VARCHAR(100)    NOT NULL UNIQUE
+);
+
+INSERT INTO cat_lengua (nombre) VALUES
+    ('Español'),
+    ('Lengua de Señas Mexicana (LSM)'),
+    ('Náhuatl'),
+    ('Maya'),
+    ('Tseltal'),
+    ('Mixteco'),
+    ('Inglés');
+
+COMMENT ON TABLE cat_lengua IS 'Catálogo de lenguas habladas/señadas por NNA conforme al FUD/LGDNNA. Incluye lenguas indígenas nacionales y LSM.';
+
+-- ----------------------------------------------------------
+--  2H. cat_pais
+-- ----------------------------------------------------------
+CREATE TABLE cat_pais (
+    id      SERIAL          PRIMARY KEY,
+    nombre  VARCHAR(100)    NOT NULL UNIQUE
+);
+
+INSERT INTO cat_pais (nombre) VALUES
+    ('México'),
+    ('Honduras'),
+    ('El Salvador'),
+    ('Guatemala'),
+    ('Estados Unidos'),
+    ('Haití'),
+    ('Venezuela');
+
+COMMENT ON TABLE cat_pais IS 'Catálogo de países de nacionalidad/origen del NNA. Base inicial para NNA migrantes y refugiados conforme al FUD/LGDNNA.';
+
+-- ----------------------------------------------------------
+--  2I. cat_escolaridad
+-- ----------------------------------------------------------
+CREATE TABLE cat_escolaridad (
+    id      SERIAL          PRIMARY KEY,
+    nombre  VARCHAR(100)    NOT NULL UNIQUE
+);
+
+INSERT INTO cat_escolaridad (nombre) VALUES
+    ('Ninguna'),
+    ('Preescolar'),
+    ('Primaria Incompleta'),
+    ('Primaria Completa'),
+    ('Secundaria Incompleta'),
+    ('Secundaria Completa'),
+    ('Bachillerato o Superior');
+
+COMMENT ON TABLE cat_escolaridad IS 'Catálogo de niveles de escolaridad del NNA conforme al FUD/LGDNNA.';
+
+-- ----------------------------------------------------------
+--  2J. cat_motivo_ingreso
+-- ----------------------------------------------------------
+CREATE TABLE cat_motivo_ingreso (
+    id      SERIAL          PRIMARY KEY,
+    nombre  VARCHAR(100)    NOT NULL UNIQUE
+);
+
+INSERT INTO cat_motivo_ingreso (nombre) VALUES
+    ('Omisión de cuidados'),
+    ('Violencia física'),
+    ('Violencia psicológica'),
+    ('Violencia sexual'),
+    ('Abandono'),
+    ('Trabajo infantil'),
+    ('Situación de calle');
+
+COMMENT ON TABLE cat_motivo_ingreso IS 'Catálogo de motivos de ingreso del NNA al sistema de protección conforme al FUD/LGDNNA.';
+
+-- ----------------------------------------------------------
+--  2K. cat_enfermedad
+--  Estructura especial: incluye código CIE-10
+-- ----------------------------------------------------------
+CREATE TABLE cat_enfermedad (
+    id_enfermedad   SERIAL          PRIMARY KEY,
+    codigo_cie      VARCHAR(10)     UNIQUE,
+    nombre          VARCHAR(255)    NOT NULL UNIQUE
+);
+
+INSERT INTO cat_enfermedad (codigo_cie, nombre) VALUES
+    ('J45',   'Asma'),
+    ('F84.0', 'Trastorno del espectro autista');
+
+COMMENT ON TABLE  cat_enfermedad            IS 'Catálogo de enfermedades con código CIE-10. Preinsertados 2 registros de ejemplo; diseñado para importación masiva del catálogo CIE-10 completo.';
+COMMENT ON COLUMN cat_enfermedad.codigo_cie IS 'Código CIE-10. UNIQUE y opcional para enfermedades sin código asignado.';
+COMMENT ON COLUMN cat_enfermedad.nombre     IS 'Nombre clínico oficial de la enfermedad o diagnóstico.';
+
+-- ----------------------------------------------------------
+--  2L. cat_tipo_contacto  ← NUEVO (v6.1)
+--  DF: {id} → {nombre}  |  FNBC ✓
+--  Normaliza el campo tipo_contacto VARCHAR de nna_contacto_adicional
+-- ----------------------------------------------------------
+CREATE TABLE cat_tipo_contacto (
+    id      SERIAL          PRIMARY KEY,
+    nombre  VARCHAR(100)    NOT NULL UNIQUE
+);
+
+INSERT INTO cat_tipo_contacto (nombre) VALUES
+    ('Teléfono Vecino'),
+    ('WhatsApp'),
+    ('Red Social'),
+    ('Correo Electrónico'),
+    ('Referencia Institucional'),
+    ('Otro');
+
+COMMENT ON TABLE cat_tipo_contacto IS 'v6.1: Catálogo de tipos de contacto alternativo del NNA. Normaliza tipo_contacto VARCHAR en nna_contacto_adicional.';
+
 
 -- ============================================================
---  FASE 3: GEOGRAFÍA NORMALIZADA (FNBC)
---  Jerarquía: entidad_federativa → cat_municipio → asentamiento → direccion
---  (4 relaciones)
+--  FASE 3: GEOGRAFÍA NORMALIZADA — MODELO HÍBRIDO (FNBC)
+--  Jerarquía: entidad_federativa → cat_municipio → direccion
+--  INTACTO DESDE v5 — NO MODIFICAR
 -- ============================================================
 
 -- ----------------------------------------------------------
 --  3A. ENTIDAD_FEDERATIVA
---  DF: {id_ent} → {nom_ent}  |  FNBC ✓
 -- ----------------------------------------------------------
 CREATE TABLE entidad_federativa (
     id_ent      SERIAL          PRIMARY KEY,
@@ -158,10 +300,7 @@ INSERT INTO entidad_federativa (nom_ent) VALUES
 COMMENT ON TABLE entidad_federativa IS 'Catálogo de entidades federativas de México. Extensible para países extranjeros (NNA migrantes/refugiados).';
 
 -- ----------------------------------------------------------
---  3B. CAT_MUNICIPIO  ← NUEVA TABLA (3FN/FNBC)
---  Creada para eliminar la dependencia transitiva:
---  asentamiento: id_asen → cp_asen → nom_mun (e id_ent)
---  DF: {id_municipio} → {nom_mun, id_ent}  |  FNBC ✓
+--  3B. CAT_MUNICIPIO
 -- ----------------------------------------------------------
 CREATE TABLE cat_municipio (
     id_municipio    SERIAL          PRIMARY KEY,
@@ -171,58 +310,44 @@ CREATE TABLE cat_municipio (
     CONSTRAINT uq_municipio_ent UNIQUE (nom_mun, id_ent)
 );
 
-COMMENT ON TABLE  cat_municipio         IS '3FN/FNBC: Catálogo de municipios/alcaldías vinculados a su entidad federativa. Extrae la dependencia transitiva cp_asen → nom_mun de asentamiento.';
+COMMENT ON TABLE  cat_municipio         IS '3FN/FNBC: Catálogo de municipios/alcaldías vinculados a su entidad federativa.';
 COMMENT ON COLUMN cat_municipio.nom_mun IS 'Nombre del municipio o alcaldía.';
 COMMENT ON COLUMN cat_municipio.id_ent  IS 'FK a entidad_federativa. El municipio pertenece a una sola entidad.';
 
 CREATE INDEX idx_municipio_ent ON cat_municipio(id_ent);
 
 -- ----------------------------------------------------------
---  3C. ASENTAMIENTO  (reestructurado en 3FN)
---  nom_mun e id_ent removidos → sustituidos por id_municipio FK
---  DF: {id_asen} → {nom_col, cp_asen, id_municipio}  |  FNBC ✓
--- ----------------------------------------------------------
-CREATE TABLE asentamiento (
-    id_asen         SERIAL          PRIMARY KEY,
-    nom_col         VARCHAR(200)    NOT NULL,
-    cp_asen         VARCHAR(5)      NOT NULL,
-    id_municipio    INT             NOT NULL REFERENCES cat_municipio(id_municipio) ON DELETE RESTRICT,
-
-    CONSTRAINT chk_cp_asen CHECK (cp_asen ~ '^\d{5}$')
-);
-
-COMMENT ON TABLE  asentamiento              IS 'Asentamientos humanos (colonias) con CP, vinculados a municipio normalizado. Reestructurado en 3FN.';
-COMMENT ON COLUMN asentamiento.nom_col      IS 'Nombre de la colonia o asentamiento humano.';
-COMMENT ON COLUMN asentamiento.cp_asen      IS 'Código postal de 5 dígitos.';
-COMMENT ON COLUMN asentamiento.id_municipio IS 'FK a cat_municipio. Reemplaza nom_mun e id_ent directos (3FN).';
-
-CREATE INDEX idx_asen_municipio ON asentamiento(id_municipio);
-CREATE INDEX idx_asen_cp        ON asentamiento(cp_asen);
-
--- ----------------------------------------------------------
---  3D. DIRECCION
---  DF: {id_dir} → {calle_dir, no_ext_dir, no_int_dir, ref_dir, id_asen}  |  FNBC ✓
+--  3C. DIRECCION — MODELO HÍBRIDO
 -- ----------------------------------------------------------
 CREATE TABLE direccion (
-    id_dir      SERIAL          PRIMARY KEY,
-    calle_dir   VARCHAR(200),
-    no_ext_dir  VARCHAR(20),
-    no_int_dir  VARCHAR(20),
-    ref_dir     VARCHAR(200),
-    id_asen     INT             NOT NULL REFERENCES asentamiento(id_asen) ON DELETE RESTRICT
+    id_dir          SERIAL          PRIMARY KEY,
+    calle_dir       VARCHAR(200),
+    no_ext_dir      VARCHAR(20),
+    no_int_dir      VARCHAR(20),
+    ref_dir         VARCHAR(200),
+    colonia_abierta VARCHAR(200)    NOT NULL,
+    codigo_postal   VARCHAR(5)      NOT NULL,
+    id_municipio    INT             NOT NULL REFERENCES cat_municipio(id_municipio) ON DELETE RESTRICT,
+
+    CONSTRAINT chk_codigo_postal CHECK (codigo_postal ~ '^\d{5}$')
 );
 
-COMMENT ON TABLE  direccion            IS 'Domicilios específicos: calle + números + referencia + FK a asentamiento.';
-COMMENT ON COLUMN direccion.ref_dir    IS 'Referencia adicional (entre calles, cerca de, etc.).';
-COMMENT ON COLUMN direccion.no_ext_dir IS 'Número exterior.';
-COMMENT ON COLUMN direccion.no_int_dir IS 'Número interior (depto, local, etc.).';
+COMMENT ON TABLE  direccion                 IS 'Modelo Geográfico Híbrido (v5): domicilio completo con colonia y CP como texto abierto, anclado al municipio normalizado vía FK.';
+COMMENT ON COLUMN direccion.calle_dir       IS 'Nombre de la calle o vialidad.';
+COMMENT ON COLUMN direccion.no_ext_dir      IS 'Número exterior.';
+COMMENT ON COLUMN direccion.no_int_dir      IS 'Número interior (depto, local, etc.).';
+COMMENT ON COLUMN direccion.ref_dir         IS 'Referencia adicional (entre calles, cerca de, etc.).';
+COMMENT ON COLUMN direccion.colonia_abierta IS 'Nombre de la colonia o asentamiento en texto libre.';
+COMMENT ON COLUMN direccion.codigo_postal   IS 'Código postal de 5 dígitos. Validado por CONSTRAINT chk_codigo_postal.';
+COMMENT ON COLUMN direccion.id_municipio    IS 'FK a cat_municipio. Ancla geográfico normalizado.';
 
-CREATE INDEX idx_dir_asen ON direccion(id_asen);
+CREATE INDEX idx_dir_municipio ON direccion(id_municipio);
+CREATE INDEX idx_dir_cp        ON direccion(codigo_postal);
 
 
 -- ============================================================
 --  FASE 4: OPERACIÓN DE LA PLATAFORMA
---  Tabla: usuario_sistema  (reestructurada en 3FN/FNBC)
+--  INTACTO DESDE v5 — NO MODIFICAR
 -- ============================================================
 
 CREATE TABLE usuario_sistema (
@@ -234,10 +359,8 @@ CREATE TABLE usuario_sistema (
     apellido_materno        VARCHAR(100),
     correo                  VARCHAR(255)    NOT NULL UNIQUE,
     contrasena              VARCHAR(255)    NOT NULL,
-    id_rol                  INT             NOT NULL REFERENCES cat_rol_sistema(id)    ON DELETE RESTRICT,
-    -- 3FN: municipio_labora VARCHAR eliminado → reemplazado por FK normalizada
-    id_municipio_labora     INT             REFERENCES cat_municipio(id_municipio)     ON DELETE SET NULL,
-    -- NOTA: estado NO es transitivo (describe al usuario directamente) → se conserva
+    id_rol                  INT             NOT NULL REFERENCES cat_rol_sistema(id)     ON DELETE RESTRICT,
+    id_municipio_labora     INT             REFERENCES cat_municipio(id_municipio)      ON DELETE SET NULL,
     estado                  VARCHAR(20)     NOT NULL DEFAULT 'ACTIVO',
     fecha_registro          TIMESTAMP       NOT NULL DEFAULT NOW(),
 
@@ -246,21 +369,19 @@ CREATE TABLE usuario_sistema (
     CONSTRAINT chk_estado_usuario CHECK (estado IN ('ACTIVO', 'INACTIVO', 'SUSPENDIDO'))
 );
 
-COMMENT ON TABLE  usuario_sistema                    IS 'Usuarios operativos de la plataforma Aurora. Reestructurado en 3FN: municipio_labora VARCHAR → id_municipio_labora FK.';
-COMMENT ON COLUMN usuario_sistema.contrasena         IS 'Almacenar SIEMPRE como hash (bcrypt/argon2). Nunca texto plano.';
-COMMENT ON COLUMN usuario_sistema.id_rol             IS 'FK a cat_rol_sistema. Define permisos funcionales del usuario.';
-COMMENT ON COLUMN usuario_sistema.id_municipio_labora IS '3FN: FK a cat_municipio. Reemplaza municipio_labora VARCHAR para eliminar dependencia transitiva id_usuario → municipio_labora → estado_geográfico.';
-COMMENT ON COLUMN usuario_sistema.estado             IS 'ACTIVO | INACTIVO | SUSPENDIDO — atributo propio del usuario, NO transitivo, se conserva en FNBC.';
+COMMENT ON TABLE  usuario_sistema                     IS 'Usuarios operativos de la plataforma Aurora. Reestructurado en 3FN: municipio_labora VARCHAR → id_municipio_labora FK.';
+COMMENT ON COLUMN usuario_sistema.contrasena          IS 'Almacenar SIEMPRE como hash (bcrypt/argon2). Nunca texto plano.';
+COMMENT ON COLUMN usuario_sistema.id_rol              IS 'FK a cat_rol_sistema. Define permisos funcionales del usuario.';
+COMMENT ON COLUMN usuario_sistema.id_municipio_labora IS '3FN: FK a cat_municipio. Reemplaza municipio_labora VARCHAR.';
+COMMENT ON COLUMN usuario_sistema.estado              IS 'ACTIVO | INACTIVO | SUSPENDIDO — atributo propio del usuario, NO transitivo, se conserva en FNBC.';
 
 
 -- ============================================================
 --  FASE 5: ENTIDADES CENTRALES
---  Tablas: tutor · nna
 -- ============================================================
 
 -- ----------------------------------------------------------
---  5A. TUTOR
---  DF: {id_tutor} → {todos los atributos}  |  FNBC ✓
+--  5A. TUTOR  (sin cambios en v6.1)
 -- ----------------------------------------------------------
 CREATE TABLE tutor (
     id_tutor            SERIAL          PRIMARY KEY,
@@ -282,7 +403,6 @@ COMMENT ON COLUMN tutor.es_adulto_mayor IS 'TRUE si el tutor tiene 60 años o m�
 -- ----------------------------------------------------------
 --  5B. NNA — Niñas, Niños y Adolescentes (FUD/LGDNNA)
 --  DF: {id_nna} → {todos los atributos}  |  FNBC ✓
---  dir_actual y luga_nac_nna: FKs externas (no transitivas)
 -- ----------------------------------------------------------
 CREATE TABLE nna (
     id_nna              SERIAL          PRIMARY KEY,
@@ -293,18 +413,14 @@ CREATE TABLE nna (
     fecha_nacimiento    DATE            NOT NULL,
     curp                VARCHAR(18)     UNIQUE,
     id_sexo             INT             NOT NULL REFERENCES cat_sexo(id)              ON DELETE RESTRICT,
-
-    -- Dirección normalizada (modelo FUD/LGDNNA)
+    id_escolaridad      INT             REFERENCES cat_escolaridad(id)                ON DELETE RESTRICT,
+    id_motivo_ingreso   INT             REFERENCES cat_motivo_ingreso(id)             ON DELETE RESTRICT,
     dir_actual          INT             REFERENCES direccion(id_dir)                  ON DELETE SET NULL,
     luga_nac_nna        INT             REFERENCES entidad_federativa(id_ent)         ON DELETE SET NULL,
-
-    -- Vulnerabilidad / Contexto (BOOLEANs atómicos — FNBC ✓)
     situacion_calle     BOOLEAN         NOT NULL DEFAULT FALSE,
     es_migrante         BOOLEAN         NOT NULL DEFAULT FALSE,
     es_refugiado        BOOLEAN         NOT NULL DEFAULT FALSE,
     poblacion_indigena  BOOLEAN         NOT NULL DEFAULT FALSE,
-
-    -- Auditoría
     fecha_registro      TIMESTAMP       NOT NULL DEFAULT NOW(),
     registrado_por      UUID            REFERENCES usuario_sistema(id_usuario)        ON DELETE SET NULL,
 
@@ -315,7 +431,9 @@ CREATE TABLE nna (
 COMMENT ON TABLE  nna                    IS 'Registro central de NNA conforme al FUD y la LGDNNA.';
 COMMENT ON COLUMN nna.folio_nna          IS 'Folio único de ingreso asignado por el sistema o autoridad competente.';
 COMMENT ON COLUMN nna.id_sexo            IS 'FK a cat_sexo.';
-COMMENT ON COLUMN nna.dir_actual         IS 'FK a direccion. Domicilio actual del NNA (jerarquía: direccion→asentamiento→cat_municipio→entidad_federativa).';
+COMMENT ON COLUMN nna.id_escolaridad     IS 'FK a cat_escolaridad. Nivel educativo actual del NNA conforme al FUD/LGDNNA.';
+COMMENT ON COLUMN nna.id_motivo_ingreso  IS 'FK a cat_motivo_ingreso. Causa principal de ingreso al sistema de protección conforme al FUD/LGDNNA.';
+COMMENT ON COLUMN nna.dir_actual         IS 'FK a direccion. Domicilio actual del NNA.';
 COMMENT ON COLUMN nna.luga_nac_nna       IS 'FK a entidad_federativa. Entidad o país de nacimiento del NNA.';
 COMMENT ON COLUMN nna.situacion_calle    IS 'TRUE si el NNA se encuentra o encontraba en situación de calle.';
 COMMENT ON COLUMN nna.es_migrante        IS 'TRUE si el NNA tiene condición migratoria activa o reconocida.';
@@ -326,42 +444,41 @@ COMMENT ON COLUMN nna.registrado_por     IS 'FK al usuario que realizó el regis
 
 -- ============================================================
 --  FASE 6: RELACIONES Y LISTAS MULTIVALORADAS
---  (5 relaciones — tablas puente con PK compuestas)
+--  (6 relaciones)
 -- ============================================================
 
 -- ----------------------------------------------------------
 --  6A. NNA ↔ TUTOR
---  CC: {id_nna, id_tutor} → único determinante  |  FNBC ✓
 -- ----------------------------------------------------------
 CREATE TABLE nna_tutor (
-    id_nna              INT             NOT NULL REFERENCES nna(id_nna)     ON DELETE CASCADE,
-    id_tutor            INT             NOT NULL REFERENCES tutor(id_tutor) ON DELETE CASCADE,
-    relacion_parentesco VARCHAR(80)     NOT NULL,
-    es_contacto_ppal    BOOLEAN         NOT NULL DEFAULT FALSE,
+    id_nna              INT     NOT NULL REFERENCES nna(id_nna)        ON DELETE CASCADE,
+    id_tutor            INT     NOT NULL REFERENCES tutor(id_tutor)    ON DELETE CASCADE,
+    id_parentesco       INT     NOT NULL REFERENCES cat_parentesco(id) ON DELETE RESTRICT,
+    es_contacto_ppal    BOOLEAN NOT NULL DEFAULT FALSE,
     fecha_vinculacion   DATE,
 
     PRIMARY KEY (id_nna, id_tutor)
 );
 
 COMMENT ON TABLE  nna_tutor                  IS 'Relación N:M entre NNA y sus tutores/responsables.';
+COMMENT ON COLUMN nna_tutor.id_parentesco    IS 'FK a cat_parentesco. Tipo de vínculo entre el tutor y el NNA.';
 COMMENT ON COLUMN nna_tutor.es_contacto_ppal IS 'TRUE si este tutor es el contacto de referencia principal para el NNA.';
 
 -- ----------------------------------------------------------
 --  6B. NACIONALIDADES del NNA
---  Solo atributos de clave → FNBC trivial ✓
 -- ----------------------------------------------------------
 CREATE TABLE nna_nacionalidad (
-    id_nna              INT             NOT NULL REFERENCES nna(id_nna) ON DELETE CASCADE,
-    pais_nacionalidad   VARCHAR(100)    NOT NULL,
+    id_nna      INT     NOT NULL REFERENCES nna(id_nna)  ON DELETE CASCADE,
+    id_pais     INT     NOT NULL REFERENCES cat_pais(id) ON DELETE RESTRICT,
 
-    PRIMARY KEY (id_nna, pais_nacionalidad)
+    PRIMARY KEY (id_nna, id_pais)
 );
 
-COMMENT ON TABLE nna_nacionalidad IS 'Nacionalidades del NNA; admite doble o múltiple nacionalidad.';
+COMMENT ON TABLE  nna_nacionalidad         IS 'Nacionalidades del NNA; admite doble o múltiple nacionalidad.';
+COMMENT ON COLUMN nna_nacionalidad.id_pais IS 'FK a cat_pais. Reemplaza pais_nacionalidad VARCHAR (v6).';
 
 -- ----------------------------------------------------------
 --  6C. DISCAPACIDADES del NNA
---  CC: {id_nna, id_tipo_discapacidad} → único determinante  |  FNBC ✓
 -- ----------------------------------------------------------
 CREATE TABLE nna_discapacidad (
     id_nna                     INT     NOT NULL REFERENCES nna(id_nna)               ON DELETE CASCADE,
@@ -378,42 +495,61 @@ COMMENT ON COLUMN nna_discapacidad.diagnostico_medico_oficial IS 'TRUE si existe
 
 -- ----------------------------------------------------------
 --  6D. LENGUAS del NNA
---  CC: {id_nna, nombre_lengua} → único determinante  |  FNBC ✓
 -- ----------------------------------------------------------
 CREATE TABLE nna_lengua (
-    id_nna               INT          NOT NULL REFERENCES nna(id_nna)               ON DELETE CASCADE,
-    nombre_lengua        VARCHAR(100) NOT NULL,
-    es_preferente        BOOLEAN      NOT NULL DEFAULT FALSE,
-    id_nivel_competencia INT          NOT NULL REFERENCES cat_nivel_competencia(id)  ON DELETE RESTRICT,
-    requiere_interprete  BOOLEAN      NOT NULL DEFAULT FALSE,
+    id_nna               INT     NOT NULL REFERENCES nna(id_nna)               ON DELETE CASCADE,
+    id_lengua            INT     NOT NULL REFERENCES cat_lengua(id)            ON DELETE RESTRICT,
+    es_preferente        BOOLEAN NOT NULL DEFAULT FALSE,
+    id_nivel_competencia INT     NOT NULL REFERENCES cat_nivel_competencia(id) ON DELETE RESTRICT,
+    requiere_interprete  BOOLEAN NOT NULL DEFAULT FALSE,
 
-    PRIMARY KEY (id_nna, nombre_lengua)
+    PRIMARY KEY (id_nna, id_lengua)
 );
 
-COMMENT ON TABLE  nna_lengua                     IS 'Lenguas habladas/señadas por el NNA, incluyendo lenguas indígenas y LSM.';
+COMMENT ON TABLE  nna_lengua                     IS 'Lenguas habladas/señadas por el NNA. PK compuesta: (id_nna, id_lengua).';
+COMMENT ON COLUMN nna_lengua.id_lengua           IS 'FK a cat_lengua. Reemplaza nombre_lengua VARCHAR (v6).';
 COMMENT ON COLUMN nna_lengua.es_preferente       IS 'TRUE si esta es la lengua de comunicación principal del NNA.';
 COMMENT ON COLUMN nna_lengua.requiere_interprete IS 'TRUE si el NNA necesita intérprete para la atención institucional.';
 
 -- ----------------------------------------------------------
---  6E. CONTACTOS ADICIONALES del NNA
+--  6E. CONTACTOS ADICIONALES del NNA  (v6.1: tipo_contacto → FK)
 --  PK atómica (id_contacto)  |  FNBC ✓
 -- ----------------------------------------------------------
 CREATE TABLE nna_contacto_adicional (
-    id_contacto    SERIAL       PRIMARY KEY,
-    id_nna         INT          NOT NULL REFERENCES nna(id_nna) ON DELETE CASCADE,
-    tipo_contacto  VARCHAR(80)  NOT NULL,
-    valor_contacto VARCHAR(255) NOT NULL,
-    descripcion    VARCHAR(255),
+    id_contacto         SERIAL       PRIMARY KEY,
+    id_nna              INT          NOT NULL REFERENCES nna(id_nna)              ON DELETE CASCADE,
+    -- v6.1: texto libre reemplazado por FK a catálogo
+    id_tipo_contacto    INT          NOT NULL REFERENCES cat_tipo_contacto(id)    ON DELETE RESTRICT,
+    valor_contacto      VARCHAR(255) NOT NULL,
+    descripcion         VARCHAR(255),
 
-    CONSTRAINT uq_nna_contacto UNIQUE (id_nna, tipo_contacto, valor_contacto)
+    CONSTRAINT uq_nna_contacto UNIQUE (id_nna, id_tipo_contacto, valor_contacto)
 );
 
-COMMENT ON TABLE nna_contacto_adicional IS 'Medios de contacto alternativos del NNA (redes sociales, referencias vecinales, etc.).';
+COMMENT ON TABLE  nna_contacto_adicional              IS 'Medios de contacto alternativos del NNA. v6.1: tipo_contacto VARCHAR → id_tipo_contacto FK a cat_tipo_contacto.';
+COMMENT ON COLUMN nna_contacto_adicional.id_tipo_contacto IS 'v6.1: FK a cat_tipo_contacto. Reemplaza tipo_contacto VARCHAR para normalizar el medio de contacto.';
+COMMENT ON COLUMN nna_contacto_adicional.valor_contacto   IS 'Valor del contacto: número, URL, usuario, etc.';
+COMMENT ON COLUMN nna_contacto_adicional.descripcion      IS 'Nota libre adicional (ej: "Facebook de la abuela materna").';
+
+-- ----------------------------------------------------------
+--  6F. NNA ↔ ENFERMEDAD
+-- ----------------------------------------------------------
+CREATE TABLE nna_enfermedad (
+    id_nna              INT     NOT NULL REFERENCES nna(id_nna)                   ON DELETE CASCADE,
+    id_enfermedad       INT     NOT NULL REFERENCES cat_enfermedad(id_enfermedad)  ON DELETE RESTRICT,
+    bajo_tratamiento    BOOLEAN NOT NULL DEFAULT FALSE,
+    observaciones       TEXT,
+
+    PRIMARY KEY (id_nna, id_enfermedad)
+);
+
+COMMENT ON TABLE  nna_enfermedad                  IS 'Relación N:M entre NNA y enfermedades diagnosticadas. Vincula con cat_enfermedad (CIE-10).';
+COMMENT ON COLUMN nna_enfermedad.bajo_tratamiento IS 'TRUE si el NNA está recibiendo tratamiento activo para esta enfermedad.';
+COMMENT ON COLUMN nna_enfermedad.observaciones    IS 'Notas clínicas adicionales específicas del vínculo NNA-enfermedad.';
 
 
 -- ============================================================
 --  FASE 7: SEGUIMIENTO MULTIDISCIPLINARIO
---  PK atómica UUID  |  FNBC ✓
 -- ============================================================
 
 CREATE TABLE expediente_seguimiento (
@@ -440,8 +576,6 @@ COMMENT ON COLUMN expediente_seguimiento.archivo_adjunto_path IS 'Ruta relativa 
 --  FASE 8: DATOS OPERATIVOS INICIALES
 -- ============================================================
 
--- Cambio de estado: Trabajadores Sociales → INACTIVO
--- (UPDATE 0 si aún no hay usuarios — comportamiento esperado en BD nueva)
 UPDATE usuario_sistema
 SET    estado = 'INACTIVO'
 WHERE  id_rol = (
@@ -460,10 +594,21 @@ CREATE INDEX idx_usuario_mun_lab    ON usuario_sistema(id_municipio_labora);
 
 -- nna
 CREATE INDEX idx_nna_sexo           ON nna(id_sexo);
+CREATE INDEX idx_nna_escolaridad    ON nna(id_escolaridad);
+CREATE INDEX idx_nna_motivo         ON nna(id_motivo_ingreso);
 CREATE INDEX idx_nna_dir_actual     ON nna(dir_actual);
 CREATE INDEX idx_nna_luga_nac       ON nna(luga_nac_nna);
 CREATE INDEX idx_nna_fecha_nac      ON nna(fecha_nacimiento);
 CREATE INDEX idx_nna_vulnerabilidad ON nna(situacion_calle, es_migrante, es_refugiado, poblacion_indigena);
+
+-- tablas puente
+CREATE INDEX idx_nna_tutor_tutor    ON nna_tutor(id_tutor);
+CREATE INDEX idx_nna_tutor_parent   ON nna_tutor(id_parentesco);
+CREATE INDEX idx_nna_nac_pais       ON nna_nacionalidad(id_pais);
+CREATE INDEX idx_nna_lengua_len     ON nna_lengua(id_lengua);
+CREATE INDEX idx_nna_enf_enf        ON nna_enfermedad(id_enfermedad);
+CREATE INDEX idx_nna_cont_tipo      ON nna_contacto_adicional(id_tipo_contacto);
+CREATE INDEX idx_nna_cont_nna       ON nna_contacto_adicional(id_nna);
 
 -- expediente_seguimiento
 CREATE INDEX idx_exp_nna            ON expediente_seguimiento(id_nna);
@@ -471,57 +616,66 @@ CREATE INDEX idx_exp_usuario        ON expediente_seguimiento(id_usuario);
 CREATE INDEX idx_exp_fecha          ON expediente_seguimiento(fecha_atencion DESC);
 CREATE INDEX idx_exp_area           ON expediente_seguimiento(id_area_atencion);
 
--- nna_tutor
-CREATE INDEX idx_nna_tutor_tutor    ON nna_tutor(id_tutor);
-
 -- geografía
-CREATE INDEX idx_asen_municipio     ON asentamiento(id_municipio);
+CREATE INDEX idx_dir_municipio      ON direccion(id_municipio);
+CREATE INDEX idx_dir_cp             ON direccion(codigo_postal);
 CREATE INDEX idx_municipio_ent      ON cat_municipio(id_ent);
 
 
 -- ============================================================
---  RESUMEN DE RELACIONES FNBC — 18 TABLAS
+--  RESUMEN DE RELACIONES FNBC — 24 TABLAS (v6.1)
 -- ============================================================
 --
---  CATÁLOGOS (5)
+--  CATÁLOGOS (12)
 --    cat_rol_sistema        ( id, nombre )
 --    cat_sexo               ( id, nombre )
 --    cat_tipo_discapacidad  ( id, nombre )
 --    cat_grado_dependencia  ( id, nombre )
 --    cat_nivel_competencia  ( id, nombre )
+--    cat_parentesco         ( id, nombre )
+--    cat_lengua             ( id, nombre )
+--    cat_pais               ( id, nombre )
+--    cat_escolaridad        ( id, nombre )
+--    cat_motivo_ingreso     ( id, nombre )
+--    cat_enfermedad         ( id_enfermedad, codigo_cie, nombre )
+--    cat_tipo_contacto *v6.1*( id, nombre )
 --
---  GEOGRAFÍA (4)
+--  GEOGRAFÍA HÍBRIDA (3)  — INTACTO DESDE v5
 --    entidad_federativa     ( id_ent, nom_ent )
---    cat_municipio *NUEVA*  ( id_municipio, nom_mun, id_ent )
---    asentamiento           ( id_asen, nom_col, cp_asen, id_municipio )
---    direccion              ( id_dir, calle_dir, no_ext_dir, no_int_dir, ref_dir, id_asen )
+--    cat_municipio          ( id_municipio, nom_mun, id_ent )
+--    direccion              ( id_dir, calle_dir, no_ext_dir, no_int_dir,
+--                             ref_dir, colonia_abierta, codigo_postal,
+--                             id_municipio )
 --
---  PLATAFORMA (1)
---    usuario_sistema *MOD*  ( id_usuario, curp, rfc, nombre, apellido_paterno,
+--  PLATAFORMA (1)  — INTACTO DESDE v5
+--    usuario_sistema        ( id_usuario, curp, rfc, nombre, apellido_paterno,
 --                             apellido_materno, correo, contrasena,
 --                             id_rol, id_municipio_labora,
 --                             estado, fecha_registro )
---                             ↑ estado = ACTIVO|INACTIVO|SUSPENDIDO — NO transitivo
 --
 --  ENTIDADES CENTRALES (2)
 --    tutor                  ( id_tutor, curp_tutor, nombre, primer_apellido,
 --                             segundo_apellido, telefono, correo, es_adulto_mayor )
 --    nna                    ( id_nna, folio_nna, nombre, prim_ap, seg_ap,
 --                             fecha_nacimiento, curp, id_sexo,
+--                             id_escolaridad, id_motivo_ingreso,
 --                             dir_actual, luga_nac_nna,
 --                             situacion_calle, es_migrante, es_refugiado,
 --                             poblacion_indigena, fecha_registro, registrado_por )
 --
---  MULTIVALORADAS (5)
---    nna_tutor              ( id_nna, id_tutor, relacion_parentesco,
+--  MULTIVALORADAS (6)
+--    nna_tutor              ( id_nna, id_tutor, id_parentesco,
 --                             es_contacto_ppal, fecha_vinculacion )
---    nna_nacionalidad       ( id_nna, pais_nacionalidad )
+--    nna_nacionalidad       ( id_nna, id_pais )
 --    nna_discapacidad       ( id_nna, id_tipo_discapacidad, id_grado_dependencia,
 --                             diagnostico_medico_oficial, descripcion_adicional )
---    nna_lengua             ( id_nna, nombre_lengua, es_preferente,
+--    nna_lengua             ( id_nna, id_lengua, es_preferente,
 --                             id_nivel_competencia, requiere_interprete )
---    nna_contacto_adicional ( id_contacto, id_nna, tipo_contacto,
+--    nna_contacto_adicional *v6.1*
+--                           ( id_contacto, id_nna, id_tipo_contacto,
 --                             valor_contacto, descripcion )
+--    nna_enfermedad         ( id_nna, id_enfermedad,
+--                             bajo_tratamiento, observaciones )
 --
 --  SEGUIMIENTO (1)
 --    expediente_seguimiento ( id_seguimiento, id_nna, id_usuario,
@@ -529,5 +683,5 @@ CREATE INDEX idx_municipio_ent      ON cat_municipio(id_ent);
 --                             notas_evolucion, archivo_adjunto_path )
 --
 -- ============================================================
---  FIN DEL SCRIPT — PROYECTO AURORA v4 · FNBC
+--  FIN DEL SCRIPT — PROYECTO AURORA v6.1 · FNBC · GEO HÍBRIDO · FUD/LGDNNA
 -- ============================================================
