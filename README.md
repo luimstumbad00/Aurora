@@ -1,7 +1,7 @@
 Markdown
 # 🌅 Proyecto Aurora - Sistema de Administración para Fundación en pro de los Derechos de NNA's
 
-Aurora es un sistema web de gestión de personal y de trabajo que permite administrar usuarios bajo distintos roles (Director, Coordinador, Analista, etc.), así como a futuro darle seguimiento a todos los casos que atiende esta fundación con niveles de acceso, manejo seguro de sesiones y una base de datos robusta en PostgreSQL que utiliza tipos de datos compuestos para estandarizar la información en México.
+Aurora es un sistema web de gestión de personal y de trabajo multidisciplinario que permite administrar usuarios bajo distintos roles operativos (Psicólogo, Médico, Trabajador Social, Abogado y Administrador), así como dar un seguimiento riguroso a los casos de Niñas, Niños y Adolescentes (NNA) bajo los estándares del FUD y la LGDNNA. Cuenta con control seguro de sesiones, manejo de roles y una base de datos robusta en PostgreSQL normalizada en su totalidad hasta la **Forma Normal de Boyce-Codd (FNBC)**.
 
 ---
 
@@ -10,8 +10,7 @@ Aurora es un sistema web de gestión de personal y de trabajo que permite admini
 Dependiendo de tu sistema operativo, necesitarás instalar las siguientes herramientas:
 
 ### 🐧 Para Linux (Ubuntu)
-Solo necesitas instalar el servidor web (Apache), PHP y PostgreSQL con su respectiva extensión.
-Abre tu terminal y ejecuta:
+Instala el servidor web (Apache), PHP y el motor PostgreSQL junto con su extensión conductora. Abre tu terminal y ejecuta:
 ```bash
 sudo apt update
 sudo apt install apache2 php postgresql postgresql-contrib php-pgsql
@@ -114,6 +113,47 @@ INSERT INTO cat_tipo_contacto (id_tipo_contacto, nombre, descripcion) VALUES
 (10, 'Teléfono de Albergue / Refugio', 'Número institucional y extensión del centro de asistencia donde pernocta el NNA.'),
 (11, 'Enlace Institucional TS', 'Contacto del área de Trabajo Social de dependencias homólogas (DIF, SIPINNA) para seguimiento.');
 
+CREATE TABLE cat_parentesco (
+    id_parentesco SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) UNIQUE NOT NULL
+);
+
+CREATE TABLE cat_motivo_ingreso (
+    id_motivo_ingreso SERIAL PRIMARY KEY,
+    nombre VARCHAR(150) UNIQUE NOT NULL
+);
+
+-- INSERCIÓN EN CAT_PARENTESCO
+INSERT INTO cat_parentesco (id_parentesco, nombre) VALUES
+(1, 'Madre'), (2, 'Padre'), (3, 'Abuela'), (4, 'Abuelo'), (5, 'Bisabuela'), 
+(6, 'Bisabuelo'), (7, 'Hermana'), (8, 'Hermano'), (9, 'Media hermana'), (10, 'Medio hermano'), 
+(11, 'Tía'), (12, 'Tío'), (13, 'Prima'), (14, 'Primo'), (15, 'Sobrina'), 
+(16, 'Sobrino'), (17, 'Madrina'), (18, 'Padrino'), (19, 'Madrastra'), (20, 'Padrastro'), 
+(21, 'Madre adoptiva'), (22, 'Padre adoptivo'), (23, 'Hermana adoptiva'), (24, 'Hermano adoptivo'), (25, 'Tutor legal'), 
+(26, 'Tutora legal'), (27, 'Representante legal'), (28, 'Curador'), (29, 'Cuidador principal'), (30, 'Cuidadora principal'), 
+(31, 'Familia de acogida'), (32, 'Madre de acogida'), (33, 'Padre de acogida'), (34, 'Guardador provisional'), (35, 'Persona responsable'), 
+(36, 'Persona de confianza'), (37, 'Vecino responsable'), (38, 'Vecina responsable'), (39, 'Amigo responsable'), (40, 'Amiga responsable'), 
+(41, 'Director de Centro de Asistencia Social'), (42, 'Personal de Centro de Asistencia Social'), (43, 'Trabajador Social'), (44, 'Procurador de Protección'), (45, 'Autoridad Judicial'), 
+(46, 'Autoridad Administrativa'), (47, 'Agente Migratorio Responsable'), (48, 'Cónyuge'), (49, 'Concubinario'), (50, 'Concubina'), 
+(51, 'Sin parentesco'), (52, 'Desconocido'), (53, 'Otro');
+
+-- INSERCIÓN EN CAT_MOTIVO_INGRESO
+INSERT INTO cat_motivo_ingreso (id_motivo_ingreso, nombre) VALUES
+(1, 'Violencia física'), (2, 'Violencia psicológica'), (3, 'Violencia emocional'), (4, 'Violencia sexual'), (5, 'Violencia familiar'), 
+(6, 'Violencia comunitaria'), (7, 'Violencia escolar'), (8, 'Bullying'), (9, 'Ciberacoso'), (10, 'Negligencia'), 
+(11, 'Omisión de cuidados'), (12, 'Abandono'), (13, 'Maltrato infantil'), (14, 'Castigo corporal'), (15, 'Explotación laboral'), 
+(16, 'Explotación sexual'), (17, 'Trata de personas'), (18, 'Trabajo infantil'), (19, 'Mendicidad forzada'), (20, 'Reclutamiento por grupos delictivos'), 
+(21, 'Riesgo por delincuencia organizada'), (22, 'Situación de calle'), (23, 'Pobreza extrema'), (24, 'Carencia de vivienda'), (25, 'Carencia alimentaria'), 
+(26, 'Desintegración familiar'), (27, 'Separación familiar'), (28, 'Conflictos familiares graves'), (29, 'Orfandad'), (30, 'Fallecimiento de tutor'), 
+(31, 'Fallecimiento de ambos padres'), (32, 'Migración acompañada'), (33, 'Migración no acompañada'), (34, 'Niña, niño o adolescente refugiado'), (35, 'Solicitante de asilo'), 
+(36, 'Desplazamiento forzado'), (37, 'Repatriación'), (38, 'Retorno asistido'), (39, 'Víctima de discriminación'), (40, 'Discriminación por discapacidad'), 
+(41, 'Discriminación étnica'), (42, 'Discriminación lingüística'), (43, 'Discriminación por nacionalidad'), (44, 'Conflicto con la ley'), (45, 'Proceso judicial en curso'), 
+(46, 'Medidas de protección judicial'), (47, 'Consumo de alcohol'), (48, 'Consumo de drogas'), (49, 'Riesgo de adicciones'), (50, 'Problemas de salud mental'), 
+(51, 'Intento de autolesión'), (52, 'Conducta suicida'), (53, 'Discapacidad sin red de apoyo'), (54, 'Enfermedad crónica sin cuidados adecuados'), (55, 'Emergencia médica'), 
+(56, 'Canalización por escuela'), (57, 'Canalización por hospital'), (58, 'Canalización por Ministerio Público'), (59, 'Canalización por DIF'), (60, 'Canalización por Procuraduría de Protección'), 
+(61, 'Canalización por autoridad migratoria'), (62, 'Canalización por autoridad judicial'), (63, 'Solicitud voluntaria de protección'), (64, 'Reintegración familiar'), (65, 'Seguimiento de caso'), 
+(66, 'Medida especial de protección'), (67, 'Riesgo social'), (68, 'Riesgo comunitario'), (69, 'Otro');
+
 -- 5. USUARIOS
 CREATE TABLE usuario (
     curp VARCHAR(18) PRIMARY KEY,
@@ -167,7 +207,7 @@ CREATE TABLE tutor (
 CREATE TABLE nna_tutor (
     curp_nna VARCHAR(18) REFERENCES nna(curp) ON DELETE CASCADE,
     curp_tutor VARCHAR(18) REFERENCES tutor(curp) ON DELETE CASCADE,
-    relacion VARCHAR(50),
+    id_parentesco INT REFERENCES cat_parentesco(id_parentesco), -- FK Normalizada en 3FN/FNBC
     PRIMARY KEY (curp_nna, curp_tutor)
 );
 
@@ -211,7 +251,8 @@ CREATE TABLE hecho_victimal (
     fecha_hecho DATE,
     relato_hechos TEXT,
     id_colonia_hechos INT REFERENCES cat_colonia(id_colonia),
-    calle_hechos VARCHAR(100)
+    calle_hechos VARCHAR(100),
+    id_motivo_ingreso INT REFERENCES cat_motivo_ingreso(id_motivo_ingreso) -- FK que asocia el motivo real del ingreso
 );
 
 CREATE TABLE dano_sufrido (

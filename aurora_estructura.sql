@@ -124,13 +124,17 @@ CREATE TABLE cat_parentesco (
 );
 
 INSERT INTO cat_parentesco (nombre) VALUES
-    ('Madre'),
-    ('Padre'),
-    ('Abuelo/a'),
-    ('Tío/a'),
-    ('Hermano/a'),
-    ('Tutor Legal'),
-    ('Institución');
+    ('Madre'), ('Padre'), ('Abuela'), ('Abuelo'), ('Bisabuela'), 
+    ('Bisabuelo'), ('Hermana'), ('Hermano'), ('Media hermana'), ('Medio hermano'), 
+    ('Tía'), ('Tío'), ('Prima'), ('Primo'), ('Sobrina'), 
+    ('Sobrino'), ('Madrina'), ('Padrino'), ('Madrastra'), ('Padrastro'), 
+    ('Madre adoptiva'), ('Padre adoptivo'), ('Hermana adoptiva'), ('Hermano adoptivo'), ('Tutor legal'), 
+    ('Tutora legal'), ('Representante legal'), ('Curador'), ('Cuidador principal'), ('Cuidadora principal'), 
+    ('Familia de acogida'), ('Madre de acogida'), ('Padre de acogida'), ('Guardador provisional'), ('Persona responsable'), 
+    ('Persona de confianza'), ('Vecino responsable'), ('Vecina responsable'), ('Amigo responsable'), ('Amiga responsable'), 
+    ('Director de Centro de Asistencia Social'), ('Personal de Centro de Asistencia Social'), ('Trabajador Social'), ('Procurador de Protección'), ('Autoridad Judicial'), 
+    ('Autoridad Administrativa'), ('Agente Migratorio Responsable'), ('Cónyuge'), ('Concubinario'), ('Concubina'), 
+    ('Sin parentesco'), ('Desconocido'), ('Otro');
 
 COMMENT ON TABLE cat_parentesco IS 'Catálogo de tipos de parentesco o relación entre tutor y NNA conforme al FUD/LGDNNA.';
 
@@ -200,13 +204,20 @@ CREATE TABLE cat_motivo_ingreso (
 );
 
 INSERT INTO cat_motivo_ingreso (nombre) VALUES
-    ('Omisión de cuidados'),
-    ('Violencia física'),
-    ('Violencia psicológica'),
-    ('Violencia sexual'),
-    ('Abandono'),
-    ('Trabajo infantil'),
-    ('Situación de calle');
+    ('Violencia física'), ('Violencia psicológica'), ('Violencia emocional'), ('Violencia sexual'), ('Violencia familiar'), 
+    ('Violencia comunitaria'), ('Violencia escolar'), ('Bullying'), ('Ciberacoso'), ('Negligencia'), 
+    ('Omisión de cuidados'), ('Abandono'), ('Maltrato infantil'), ('Castigo corporal'), ('Explotación laboral'), 
+    ('Explotación sexual'), ('Trata de personas'), ('Trabajo infantil'), ('Mendicidad forzada'), ('Reclutamiento por grupos delictivos'), 
+    ('Riesgo por delincuencia organizada'), ('Situación de calle'), ('Pobreza extrema'), ('Carencia de vivienda'), ('Carencia alimentaria'), 
+    ('Desintegración familiar'), ('Separación familiar'), ('Conflictos familiares graves'), ('Orfandad'), ('Fallecimiento de tutor'), 
+    ('Fallecimiento de ambos padres'), ('Migración accompagnée'), ('Migración no acompañada'), ('Niña, niño o adolescente refugiado'), ('Solicitante de asilo'), 
+    ('Desplazamiento forzado'), ('Repatriación'), ('Retorno asistido'), ('Víctima de discriminación'), ('Discriminación por discapacidad'), 
+    ('Discriminación étnica'), ('Discriminación lingüística'), ('Discriminación por nacionalidad'), ('Conflicto con la ley'), ('Proceso judicial en curso'), 
+    ('Medidas de protección judicial'), ('Consumo de alcohol'), ('Consumo de drogas'), ('Riesgo de adicciones'), ('Problemas de salud mental'), 
+    ('Intento de autolesión'), ('Conducta suicida'), ('Discapacidad sin red de apoyo'), ('Enfermedad crónica sin cuidados adecuados'), ('Emergencia médica'), 
+    ('Canalización por escuela'), ('Canalización por hospital'), ('Canalización por Ministerio Público'), ('Canalización por DIF'), ('Canalización por Procuraduría de Protección'), 
+    ('Canalización por autoridad migratoria'), ('Canalización por autoridad judicial'), ('Solicitud voluntaria de protección'), ('Reintegración familiar'), ('Seguimiento de caso'), 
+    ('Medida especial de protección'), ('Riesgo social'), ('Riesgo comunitario'), ('Otro');
 
 COMMENT ON TABLE cat_motivo_ingreso IS 'Catálogo de motivos de ingreso del NNA al sistema de protección conforme al FUD/LGDNNA.';
 
@@ -239,12 +250,17 @@ CREATE TABLE cat_tipo_contacto (
 );
 
 INSERT INTO cat_tipo_contacto (nombre) VALUES
-    ('Teléfono Vecino'),
-    ('WhatsApp'),
-    ('Red Social'),
-    ('Correo Electrónico'),
-    ('Referencia Institucional'),
-    ('Otro');
+    ('Teléfono fijo'),
+    ('Celular'),
+    ('Correo'),
+    ('Instagram'),
+    ('Facebook'),
+    ('LinkedIn'),
+    ('Telegram'),
+    ('Caseta Comunitaria'),
+    ('Red Vecinal / Autoridad Local'),
+    ('Teléfono de Albergue / Refugio'),
+    ('Enlace Institucional TS');
 
 COMMENT ON TABLE cat_tipo_contacto IS 'v6.1: Catálogo de tipos de contacto alternativo del NNA. Normaliza tipo_contacto VARCHAR en nna_contacto_adicional.';
 
