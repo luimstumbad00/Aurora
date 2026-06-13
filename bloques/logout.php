@@ -17,7 +17,7 @@ if (ini_get("session.use_cookies")) {
 // 4. Finalmente, destruir la sesión en el servidor
 session_destroy();
 
-// 5. Redirigir a la pantalla de inicio o login
-header("Location: /Aurora");
+// 5. Redirigir a la pantalla de login
+header("Location: /Aurora/index.php");
 exit();
 ?>

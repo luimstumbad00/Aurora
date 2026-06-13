@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-// 1. Seguridad: Validar sesión y roles (Administrador o Médico si lo tienes)
+// 1. Seguridad: Validar sesión
 if (!isset($_SESSION['usuario'])) {
     header("Location: ../index.php");
     exit();
@@ -10,7 +10,7 @@ if (!isset($_SESSION['usuario'])) {
 require '../config/database.php';
 
 // 2. Obtener la CURP (Viene por GET la primera vez, por POST después)
-$curp_nna = $_GET['curp_nna'] ?? $_POST['curp_nna_oculto'] ?? null;
+$curp_nna   = $_GET['curp_nna'] ?? $_POST['curp_nna_oculto'] ?? null;
 $curp_tutor = $_GET['curp_tutor'] ?? $_POST['curp_tutor_oculto'] ?? null;
 $curp_final = $curp_nna ? $curp_nna : $curp_tutor;
 
@@ -18,31 +18,64 @@ $mensaje = "";
 $tipoMensaje = "";
 
 // 3. Cargar el catálogo de enfermedades (CIE-10)
-$query_cat = "SELECT id_enfermedad, nombre_padecimiento, tipo_enfermedad FROM cat_enfermedad ORDER BY nombre_padecimiento ASC";
-$res_cat = pg_query($conn, $query_cat);
+//    cat_enfermedad tiene: id_enfermedad, codigo_cie, nombre
+$catalogo = [];
+try {
+    $catalogo = $pdo->query("
+        SELECT id_enfermedad, codigo_cie, nombre
+        FROM cat_enfermedad
+        ORDER BY nombre ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // En producción: error_log($e->getMessage());
+    $catalogo = [];
+}
 
 // 4. Procesar el registro
 if ($_SERVER["REQUEST_METHOD"] === "POST" && $curp_final) {
-    
-    $id_enfermedad = (int)$_POST['id_enfermedad'];
-    $es_cronica = isset($_POST['es_cronica']) ? 'true' : 'false';
-    $esta_controlada = isset($_POST['esta_controlada']) ? 'true' : 'false';
-    $tratamiento = pg_escape_string($conn, strtoupper(trim($_POST['tratamiento_actual'])));
 
-    // INSERT ajustado a tu tabla 'persona_enfermedad'
-    $query_insert = "INSERT INTO persona_enfermedad (
-                        curp, id_enfermedad, es_cronica, esta_controlada, tratamiento_actual
-                    ) VALUES (
-                        '$curp_final', $id_enfermedad, $es_cronica, $esta_controlada, '$tratamiento'
-                    )";
+    $id_enfermedad    = (int) ($_POST['id_enfermedad'] ?? 0);
+    $bajo_tratamiento = isset($_POST['bajo_tratamiento']) ? 'true' : 'false';
+    $observaciones    = strtoupper(trim($_POST['observaciones'] ?? ''));
 
-    $result = pg_query($conn, $query_insert);
+    try {
+        // Resolver el id_nna a partir de la CURP (nna_enfermedad usa id_nna)
+        $stmtNna = $pdo->prepare("SELECT id_nna FROM nna WHERE curp = :curp LIMIT 1");
+        $stmtNna->execute([':curp' => $curp_final]);
+        $id_nna = $stmtNna->fetchColumn();
 
-    if ($result) {
-        $mensaje = "Padecimiento registrado correctamente ✅";
-        $tipoMensaje = "success";
-    } else {
-        $mensaje = "Error al registrar: " . pg_last_error($conn);
+        if (!$id_nna) {
+            $mensaje = "No se encontró un NNA con esa CURP ⚠️";
+            $tipoMensaje = "error";
+        } elseif ($id_enfermedad <= 0) {
+            $mensaje = "Debes seleccionar un padecimiento ⚠️";
+            $tipoMensaje = "error";
+        } else {
+            $query_insert = "
+                INSERT INTO nna_enfermedad (
+                    id_nna, id_enfermedad, bajo_tratamiento, observaciones
+                ) VALUES (
+                    :id_nna, :id_enfermedad, :bajo_tratamiento, :observaciones
+                )
+            ";
+            $stmt = $pdo->prepare($query_insert);
+            $stmt->execute([
+                ':id_nna'           => $id_nna,
+                ':id_enfermedad'    => $id_enfermedad,
+                ':bajo_tratamiento' => $bajo_tratamiento,
+                ':observaciones'    => $observaciones !== '' ? $observaciones : null
+            ]);
+
+            $mensaje = "Padecimiento registrado correctamente ✅";
+            $tipoMensaje = "success";
+        }
+    } catch (PDOException $e) {
+        // PK compuesta (id_nna, id_enfermedad): si ya existe, es duplicado
+        if (strpos($e->getMessage(), 'nna_enfermedad_pkey') !== false) {
+            $mensaje = "Este padecimiento ya está registrado para el NNA ⚠️";
+        } else {
+            $mensaje = "Error al registrar el padecimiento ❌";
+        }
         $tipoMensaje = "error";
     }
 }
@@ -87,35 +120,32 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $curp_final) {
         <p style="padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; 
                   background: <?= $tipoMensaje=='success'?'#d4edda':'#f8d7da' ?>; 
                   color: <?= $tipoMensaje=='success'?'#155724':'#721c24' ?>;">
-            <?= $mensaje ?>
+            <?= htmlspecialchars($mensaje) ?>
         </p>
     <?php endif; ?>
 
     <form method="POST">
-        <input type="hidden" name="curp_nna_oculto" value="<?= htmlspecialchars($curp_nna) ?>">
-        <input type="hidden" name="curp_tutor_oculto" value="<?= htmlspecialchars($curp_tutor) ?>">
+        <input type="hidden" name="curp_nna_oculto" value="<?= htmlspecialchars($curp_nna ?? '') ?>">
+        <input type="hidden" name="curp_tutor_oculto" value="<?= htmlspecialchars($curp_tutor ?? '') ?>">
 
         <label>Padecimiento (Catálogo CIE-10):</label>
         <select name="id_enfermedad" required>
             <option value="" disabled selected>-- Seleccione una enfermedad --</option>
-            <?php while($row = pg_fetch_assoc($res_cat)): ?>
-                <option value="<?= $row['id_enfermedad'] ?>">
-                    <?= htmlspecialchars($row['nombre_padecimiento']) ?> (<?= $row['tipo_enfermedad'] ?>)
+            <?php foreach ($catalogo as $row): ?>
+                <option value="<?= (int) $row['id_enfermedad'] ?>">
+                    <?= htmlspecialchars($row['nombre']) ?><?= $row['codigo_cie'] ? ' (' . htmlspecialchars($row['codigo_cie']) . ')' : '' ?>
                 </option>
-            <?php endwhile; ?>
+            <?php endforeach; ?>
         </select>
 
         <div class="opciones-medicas">
             <label style="font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="es_cronica"> ¿Es condición crónica?
-            </label>
-            <label style="font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="esta_controlada"> ¿Está controlada?
+                <input type="checkbox" name="bajo_tratamiento"> ¿Está bajo tratamiento?
             </label>
         </div>
 
-        <label>Detalles del Tratamiento Actual:</label>
-        <textarea name="tratamiento_actual" rows="4" placeholder="Indique medicamentos, dosis o terapias recomendadas..."></textarea>
+        <label>Observaciones / Detalles del Tratamiento:</label>
+        <textarea name="observaciones" rows="4" placeholder="Indique medicamentos, dosis o terapias recomendadas..."></textarea>
 
         <button type="submit" class="btn-registrar" <?= !$curp_final ? 'disabled' : '' ?>>
             Guardar en Historial Clínico

@@ -7,7 +7,7 @@ if (!isset($_SESSION['usuario'])) {
     exit();
 }
 
-// 2. Validar que solo el Administrador pueda estar aquí (CORREGIDO AL NUEVO ROL)
+// 2. Validar que solo el Administrador pueda estar aquí
 $rolActual = $_SESSION['usuario']['rol'];
 if ($rolActual !== 'Administrador') {
     header("Location: dashboard.php?error=acceso_denegado");
@@ -48,13 +48,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
             exit();
         }
 
-        $deleteQuery = "DELETE FROM usuario WHERE curp = $1";
-        $resultDel = @pg_query_params($conn, $deleteQuery, array($curpAEliminar));
-        
-        if ($resultDel) { 
+        try {
+            $deleteQuery = "DELETE FROM usuario_sistema WHERE curp = :curp";
+            $stmtDel = $pdo->prepare($deleteQuery);
+            $stmtDel->execute([':curp' => $curpAEliminar]);
+
             header("Location: " . $_SERVER['PHP_SELF'] . "?status=deleted");
             exit();
-        } else { 
+        } catch (PDOException $e) {
+            // Si el usuario tiene expedientes asociados, la FK RESTRICT impide el borrado
+            // En producción: error_log($e->getMessage());
             header("Location: " . $_SERVER['PHP_SELF'] . "?status=error");
             exit();
         }
@@ -64,58 +67,59 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     }
 }
 
-// FASE DE LECTURA DE DATOS (CORREGIDA A LAS NUEVAS COLUMNAS SIMPLES)
+// FASE DE LECTURA DE DATOS (adaptada al esquema normalizado)
+// usuario_sistema solo guarda: curp, rfc, nombre, apellido_paterno, apellido_materno,
+// correo, estado, fecha_registro, id_rol (→cat_rol_sistema), id_municipio_labora (→cat_municipio)
 $usuarios = [];
 $queryAll = "
     SELECT 
-        curp, 
-        rfc, 
-        apellido_paterno AS apellido_p, 
-        apellido_materno AS apellido_m, 
-        nombre AS nombres, 
-        calle, 
-        numero_exterior AS num_ext, 
-        numero_interior AS num_int, 
-        codigo_postal AS cp, 
-        municipio, 
-        estado_dir, 
-        sexo, 
-        nacimiento, 
-        tipo_personal, 
-        rol, 
-        estado, 
-        correo 
-    FROM usuario 
-    ORDER BY apellido_paterno, apellido_materno, nombre
+        u.curp, 
+        u.rfc, 
+        u.apellido_paterno   AS apellido_p, 
+        u.apellido_materno   AS apellido_m, 
+        u.nombre             AS nombres, 
+        u.correo, 
+        u.estado, 
+        u.fecha_registro,
+        r.nombre             AS rol,
+        m.nom_mun            AS municipio_labora,
+        e.nom_ent            AS entidad_labora
+    FROM usuario_sistema u
+    INNER JOIN cat_rol_sistema r       ON r.id = u.id_rol
+    LEFT  JOIN cat_municipio m         ON m.id_municipio = u.id_municipio_labora
+    LEFT  JOIN entidad_federativa e    ON e.id_ent = m.id_ent
+    ORDER BY u.apellido_paterno, u.apellido_materno, u.nombre
 ";
 
-$resultAll = @pg_query($conn, $queryAll);
+try {
+    $stmtAll = $pdo->query($queryAll);
 
-if ($resultAll) { 
-    while ($row = pg_fetch_assoc($resultAll)) {
-        $nombreCompleto = trim($row['nombres'] . " " . $row['apellido_p'] . " " . $row['apellido_m']);
-        
-        $direccionCompleta = $row['calle'] . " " . $row['num_ext'];
-        if (!empty($row['num_int'])) {
-            $direccionCompleta .= " Int. " . $row['num_int'];
+    while ($row = $stmtAll->fetch(PDO::FETCH_ASSOC)) {
+        $nombreCompleto = trim($row['nombres'] . " " . $row['apellido_p'] . " " . ($row['apellido_m'] ?? ''));
+
+        // Lugar donde labora (único dato geográfico que existe para el usuario)
+        if (!empty($row['municipio_labora'])) {
+            $lugarLabora = $row['municipio_labora'];
+            if (!empty($row['entidad_labora'])) {
+                $lugarLabora .= ", " . $row['entidad_labora'];
+            }
+        } else {
+            $lugarLabora = "No asignado";
         }
-        $direccionCompleta .= ", C.P. " . $row['cp'] . ", " . $row['municipio'] . ", " . $row['estado_dir'];
 
-        $usuario = [ 
-            'curp' => $row['curp'], 
-            'rfc' => $row['rfc'], 
-            'nombre_completo' => $nombreCompleto, 
-            'direccion_completa' => $direccionCompleta,
-            'sexo' => $row['sexo'], 
-            'nacimiento' => $row['nacimiento'], 
-            'tipo_personal' => $row['tipo_personal'], 
-            'rol' => $row['rol'], 
-            'estado' => $row['estado'], 
-            'correo' => $row['correo'] 
+        $usuarios[] = [ 
+            'curp'             => $row['curp'], 
+            'rfc'              => $row['rfc'], 
+            'nombre_completo'  => $nombreCompleto, 
+            'rol'              => $row['rol'], 
+            'estado'           => $row['estado'], 
+            'correo'           => $row['correo'],
+            'fecha_registro'   => $row['fecha_registro'],
+            'lugar_labora'     => $lugarLabora
         ];
-        $usuarios[] = $usuario;
     }
-} else { 
+} catch (PDOException $e) {
+    // En producción: error_log($e->getMessage());
     $mensaje .= " No se pudieron cargar los usuarios.";
     $tipoMensaje = "error";
 }
@@ -275,15 +279,13 @@ if ($resultAll) {
                     </div> 
 
                     <div class="usuario-datos"> 
-                    <!-- Agregamos ?? '' a todos para evitar el error de null en PHP 8.1+ -->
+                    <!-- Campos mapeados al esquema normalizado (usuario_sistema + catálogos) -->
                     <div><strong>RFC:</strong> <?= htmlspecialchars($u['rfc'] ?? '') ?></div> 
-                    <div><strong>Sexo:</strong> <?= htmlspecialchars($u['sexo'] ?? 'No especificado') ?></div> 
-                    <div><strong>Nacimiento:</strong> <?= htmlspecialchars($u['nacimiento'] ?? '') ?></div> 
-                    <div><strong>Tipo de Personal:</strong> <?= htmlspecialchars($u['tipo_personal'] ?? 'No especificado') ?></div> 
                     <div><strong>Rol:</strong> <?= htmlspecialchars($u['rol'] ?? 'No asignado') ?></div> 
                     <div><strong>Estado:</strong> <?= htmlspecialchars($u['estado'] ?? '') ?></div>
                     <div><strong>Correo:</strong> <?= htmlspecialchars($u['correo'] ?? '') ?></div>
-                    <div><strong>Dirección:</strong> <?= htmlspecialchars($u['direccion_completa'] ?? 'Sin dirección registrada') ?></div>
+                    <div><strong>Municipio donde labora:</strong> <?= htmlspecialchars($u['lugar_labora'] ?? 'No asignado') ?></div>
+                    <div><strong>Fecha de registro:</strong> <?= htmlspecialchars($u['fecha_registro'] ?? '') ?></div>
                 </div>
                 </div>
             <?php endforeach; ?>

@@ -8,7 +8,6 @@ if (!isset($_SESSION['usuario'])) {
 }
 
 require("../config/database.php");
-$curp = $_SESSION['usuario']['curp'];
 
 $mensaje = "";
 $tipoMensaje = "";
@@ -18,71 +17,94 @@ if (!isset($_GET['curp'])) {
     exit();
 }
 
-$curp_tutor_get = pg_escape_string($conn, $_GET['curp']);
+$curp_tutor_get = trim($_GET['curp']);
 
 // --- LÓGICA PARA ELIMINAR ---
+// En el modelo normalizado se borra directo de tutor;
+// nna_tutor tiene ON DELETE CASCADE, así que los vínculos se limpian solos.
 if (isset($_POST['eliminar_tutor'])) {
-    // CORRECCIÓN: Borramos de 'persona', lo cual hace cascada hacia 'tutor' y 'nna_tutor'
-    $query_del = "DELETE FROM persona WHERE curp = '$curp_tutor_get'";
-    $res_del = pg_query($conn, $query_del);
+    try {
+        $stmtDel = $pdo->prepare("DELETE FROM tutor WHERE curp_tutor = :curp");
+        $stmtDel->execute([':curp' => $curp_tutor_get]);
 
-    if ($res_del) {
-        // Redirigir al directorio con un mensaje de éxito
         header("Location: ver_tutores.php?mensaje=eliminado_exito");
         exit();
-    } else {
+    } catch (PDOException $e) {
+        // En producción: error_log($e->getMessage());
         $mensaje = "Error al eliminar el tutor ❌";
         $tipoMensaje = "error";
     }
 }
 
 // --- LÓGICA PARA ACTUALIZAR ---
+// tutor guarda: nombre, primer_apellido, segundo_apellido, telefono, correo, es_adulto_mayor
+// (no hay sexo ni tabla persona, por lo que es un UPDATE de una sola tabla)
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['actualizar_tutor'])) {
-    $nombre = pg_escape_string($conn, strtoupper(trim($_POST['nombre'])));
-    $apellido_p = pg_escape_string($conn, strtoupper(trim($_POST['apellido_paterno'])));
-    $apellido_m = pg_escape_string($conn, strtoupper(trim($_POST['apellido_materno'])));
-    $sexo = pg_escape_string($conn, $_POST['sexo']);
-    $telefono = pg_escape_string($conn, trim($_POST['telefono']));
-    $correo = pg_escape_string($conn, trim($_POST['correo']));
-    $es_adulto_mayor = ($_POST['es_adulto_mayor'] ?? '') === 'Si' ? 'true' : 'false';
+    $nombre          = strtoupper(trim($_POST['nombre'] ?? ''));
+    $apellido_p      = strtoupper(trim($_POST['apellido_paterno'] ?? ''));
+    $apellido_m      = strtoupper(trim($_POST['apellido_materno'] ?? ''));
+    $telefono        = trim($_POST['telefono'] ?? '');
+    $correo          = strtolower(trim($_POST['correo'] ?? ''));
+    $es_adulto_mayor = (($_POST['es_adulto_mayor'] ?? '') === 'Si') ? 'true' : 'false';
 
-    // CORRECCIÓN: Dividimos el UPDATE en dos tablas usando una transacción
-    pg_query($conn, "BEGIN");
+    try {
+        // Una sola tabla: la transacción es opcional, pero la mantenemos por consistencia
+        $pdo->beginTransaction();
 
-    $update_persona = "UPDATE persona SET 
-                        nombre = '$nombre', 
-                        apellido_paterno = '$apellido_p', 
-                        apellido_materno = " . ($apellido_m ? "'$apellido_m'" : "NULL") . ", 
-                        sexo = '$sexo'
-                      WHERE curp = '$curp_tutor_get'";
+        $sql = "UPDATE tutor SET 
+                    nombre           = :nombre,
+                    primer_apellido  = :ap_p,
+                    segundo_apellido = :ap_m,
+                    telefono         = :tel,
+                    correo           = :correo,
+                    es_adulto_mayor  = :adulto
+                WHERE curp_tutor = :curp";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':nombre' => $nombre,
+            ':ap_p'   => $apellido_p,
+            ':ap_m'   => $apellido_m !== '' ? $apellido_m : null,
+            ':tel'    => $telefono !== '' ? $telefono : null,
+            ':correo' => $correo !== '' ? $correo : null,
+            ':adulto' => $es_adulto_mayor,
+            ':curp'   => $curp_tutor_get
+        ]);
 
-    $update_tutor = "UPDATE tutor SET 
-                        es_adulto_mayor = $es_adulto_mayor, 
-                        telefono = '$telefono', 
-                        correo = '$correo' 
-                    WHERE curp = '$curp_tutor_get'";
-
-    $res_persona = pg_query($conn, $update_persona);
-    $res_tutor = pg_query($conn, $update_tutor);
-
-    if ($res_persona && $res_tutor) {
-        pg_query($conn, "COMMIT"); // Guardamos los cambios
+        $pdo->commit();
         $mensaje = "Datos actualizados correctamente ✅";
         $tipoMensaje = "success";
-    } else {
-        pg_query($conn, "ROLLBACK"); // Revertimos si algo falló
-        $mensaje = "Error al actualizar: " . pg_last_error($conn);
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        if (strpos($e->getMessage(), 'chk_correo_tutor') !== false) {
+            $mensaje = "El formato del correo no es válido ⚠️";
+        } else {
+            $mensaje = "Error al actualizar los datos ❌";
+        }
         $tipoMensaje = "error";
     }
 }
 
-// CORRECCIÓN: Cargar datos actuales usando JOIN con persona
-$sql_tutor = "SELECT t.*, p.nombre, p.apellido_paterno, p.apellido_materno, p.sexo 
-              FROM tutor t 
-              JOIN persona p ON t.curp = p.curp 
-              WHERE t.curp = '$curp_tutor_get'";
-$res_tutor = pg_query($conn, $sql_tutor);
-$tutor = pg_fetch_assoc($res_tutor);
+// Cargar datos actuales del tutor (sin tabla persona)
+try {
+    $sql_tutor = "SELECT 
+                    curp_tutor       AS curp,
+                    nombre,
+                    primer_apellido  AS apellido_paterno,
+                    segundo_apellido AS apellido_materno,
+                    telefono,
+                    correo,
+                    es_adulto_mayor
+                  FROM tutor 
+                  WHERE curp_tutor = :curp";
+    $stmt = $pdo->prepare($sql_tutor);
+    $stmt->execute([':curp' => $curp_tutor_get]);
+    $tutor = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // En producción: error_log($e->getMessage());
+    $tutor = null;
+}
 
 if (!$tutor) { die("Error: Tutor no encontrado."); }
 ?>
@@ -110,13 +132,13 @@ if (!$tutor) { die("Error: Tutor no encontrado."); }
 
     <?php if ($mensaje): ?>
         <p style="color: white; background-color: <?= $tipoMensaje == 'success' ? '#27ae60' : '#e74c3c' ?>; padding: 10px; border-radius: 5px; text-align: center;">
-            <?= $mensaje ?>
+            <?= htmlspecialchars($mensaje) ?>
         </p>
     <?php endif; ?>
 
     <form method="POST" id="formEditar">
         <label>CURP (No editable):</label>
-        <input type="text" value="<?= htmlspecialchars($tutor['curp']) ?>" disabled style="background-color: #eee;">
+        <input type="text" value="<?= htmlspecialchars($tutor['curp'] ?? 'Sin CURP') ?>" disabled style="background-color: #eee;">
 
         <label>Nombre(s):</label>
         <input type="text" name="nombre" value="<?= htmlspecialchars($tutor['nombre']) ?>" required>
@@ -125,14 +147,7 @@ if (!$tutor) { die("Error: Tutor no encontrado."); }
         <input type="text" name="apellido_paterno" value="<?= htmlspecialchars($tutor['apellido_paterno']) ?>" required>
 
         <label>Apellido Materno:</label>
-        <input type="text" name="apellido_materno" value="<?= htmlspecialchars($tutor['apellido_materno']) ?>">
-
-        <label>Sexo:</label>
-        <select name="sexo" required>
-            <option value="Masculino" <?= $tutor['sexo'] == 'Masculino' ? 'selected' : '' ?>>MASCULINO</option>
-            <option value="Femenino" <?= $tutor['sexo'] == 'Femenino' ? 'selected' : '' ?>>FEMENINO</option>
-            <option value="Otro" <?= $tutor['sexo'] == 'Otro' ? 'selected' : '' ?>>OTRO</option>
-        </select>
+        <input type="text" name="apellido_materno" value="<?= htmlspecialchars($tutor['apellido_materno'] ?? '') ?>">
 
         <label>¿Es Adulto Mayor?</label>
         <select name="es_adulto_mayor" required>
@@ -141,10 +156,10 @@ if (!$tutor) { die("Error: Tutor no encontrado."); }
         </select>
 
         <label>Teléfono:</label>
-        <input type="text" name="telefono" value="<?= htmlspecialchars($tutor['telefono']) ?>">
+        <input type="text" name="telefono" value="<?= htmlspecialchars($tutor['telefono'] ?? '') ?>">
 
         <label>Correo Electrónico:</label>
-        <input type="email" name="correo" value="<?= htmlspecialchars($tutor['correo']) ?>" style="text-transform: lowercase;">
+        <input type="email" name="correo" value="<?= htmlspecialchars($tutor['correo'] ?? '') ?>" style="text-transform: lowercase;">
 
         <!-- Botón Actualizar -->
         <button type="submit" name="actualizar_tutor" class="btn-update">Actualizar Información</button>

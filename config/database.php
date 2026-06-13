@@ -1,15 +1,27 @@
 <?php
-
 /*
 |--------------------------------------------------------------------------
-| Conexión directa simple a PostgreSQL
+| Conexión PDO a PostgreSQL — Proyecto Aurora
 |--------------------------------------------------------------------------
-| Aquí se colocan los datos directamente.
-| Proyecto simplificado sin Composer ni .env
 */
 
-$conn = pg_connect("host=localhost dbname=aurora user=postgres password=1234");
+$host     = 'localhost';
+$dbname   = 'aurora';
+$user     = 'postgres';
+$password = 'aurora123';  // la contraseña que configuraste
+$port     = '5432';
 
-if (!$conn) {
-    die("Error de conexión ❌");
+try {
+    $pdo = new PDO(
+        "pgsql:host=$host;port=$port;dbname=$dbname",
+        $user,
+        $password,
+        [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES   => false,
+        ]
+    );
+} catch (PDOException $e) {
+    die("Error de conexión: " . $e->getMessage());
 }

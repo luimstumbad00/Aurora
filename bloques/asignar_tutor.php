@@ -8,65 +8,105 @@ if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] !== 'Administrad
     exit();
 }
 
-// 2. Identificar al niño (CURP_NNA)
-$curp_nna = $_GET['curp_nna'] ?? $_POST['curp_nna_oculto'] ?? ''; 
+// 2. Identificar al NNA (CURP llega por GET la 1ª vez, por POST después)
+$curp_nna = $_GET['curp_nna'] ?? $_POST['curp_nna_oculto'] ?? '';
 
 $mensaje = "";
 $tipoMensaje = "";
 
+// Catálogo de parentesco para el <select>
+$parentescos = [];
+try {
+    $parentescos = $pdo->query("SELECT id, nombre FROM cat_parentesco ORDER BY nombre")
+                       ->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // En producción: error_log($e->getMessage());
+}
+
 if ($_SERVER["REQUEST_METHOD"] === "POST" && !empty($curp_nna)) {
-    
-    // Captura de datos
-    $curp_tutor   = pg_escape_string($conn, strtoupper(trim($_POST['curp_tutor'])));
-    $nombre       = pg_escape_string($conn, strtoupper(trim($_POST['nombre'])));
-    $apellido_p   = pg_escape_string($conn, strtoupper(trim($_POST['apellido_p'])));
-    $apellido_m   = pg_escape_string($conn, strtoupper(trim($_POST['apellido_m'])));
-    $sexo         = pg_escape_string($conn, $_POST['sexo']);
-    $nacimiento   = pg_escape_string($conn, $_POST['nacimiento']);
-    
-    // Dirección (Superentidad Persona)
-    $calle        = pg_escape_string($conn, strtoupper(trim($_POST['calle'])));
-    $num_ext      = pg_escape_string($conn, strtoupper(trim($_POST['num_ext'])));
-    $num_int      = !empty($_POST['num_int']) ? pg_escape_string($conn, strtoupper(trim($_POST['num_int']))) : null;
-    $municipio    = pg_escape_string($conn, strtoupper(trim($_POST['municipio'])));
-    $estado_dir   = pg_escape_string($conn, $_POST['estado_dir']);
 
-    // Datos Tutor y Parentesco
-    $telefono     = pg_escape_string($conn, trim($_POST['telefono']));
-    $correo       = pg_escape_string($conn, strtolower(trim($_POST['correo'])));
-    $es_adulto    = ($_POST['es_adulto_mayor'] === 'Si') ? 'true' : 'false';
-    $relacion     = pg_escape_string($conn, strtoupper(trim($_POST['relacion'])));
+    // Datos del tutor (el esquema NO guarda sexo, nacimiento ni domicilio del tutor)
+    $curp_tutor    = strtoupper(trim($_POST['curp_tutor'] ?? ''));
+    $nombre        = strtoupper(trim($_POST['nombre'] ?? ''));
+    $apellido_p    = strtoupper(trim($_POST['apellido_p'] ?? ''));
+    $apellido_m    = strtoupper(trim($_POST['apellido_m'] ?? ''));
+    $telefono      = trim($_POST['telefono'] ?? '');
+    $correo        = strtolower(trim($_POST['correo'] ?? ''));
+    $es_adulto     = (($_POST['es_adulto_mayor'] ?? '') === 'Si') ? 'true' : 'false';
+    $id_parentesco = !empty($_POST['id_parentesco']) ? (int) $_POST['id_parentesco'] : null;
 
-    pg_query($conn, "BEGIN");
-
-    // PASO 1: Insertar/Actualizar Persona (Base)
-    $qPersona = "INSERT INTO persona (curp, nombre, apellido_paterno, apellido_materno, sexo, fecha_nacimiento, tipo_persona, municipio, estado_dir, calle, numero_exterior, numero_interior) 
-                 VALUES ('$curp_tutor', '$nombre', '$apellido_p', " . ($apellido_m ? "'$apellido_m'" : "NULL") . ", '$sexo', '$nacimiento', 'TUTOR', '$municipio', '$estado_dir', '$calle', '$num_ext', " . ($num_int ? "'$num_int'" : "NULL") . ")
-                 ON CONFLICT (curp) DO UPDATE SET 
-                 nombre = EXCLUDED.nombre, apellido_paterno = EXCLUDED.apellido_paterno, calle = EXCLUDED.calle, municipio = EXCLUDED.municipio, estado_dir = EXCLUDED.estado_dir;";
-    $res1 = pg_query($conn, $qPersona);
-
-    // PASO 2: Insertar/Actualizar Tutor (Extensión)
-    $qTutor = "INSERT INTO tutor (curp, es_adulto_mayor, telefono, correo) 
-               VALUES ('$curp_tutor', $es_adulto, '$telefono', '$correo')
-               ON CONFLICT (curp) DO UPDATE SET telefono = EXCLUDED.telefono, correo = EXCLUDED.correo;";
-    $res2 = pg_query($conn, $qTutor);
-
-    // PASO 3: Vincular con el Niño y guardar parentesco
-    $qRel = "INSERT INTO nna_tutor (curp_nna, curp_tutor, relacion) 
-             VALUES ('$curp_nna', '$curp_tutor', '$relacion')
-             ON CONFLICT (curp_nna, curp_tutor) 
-             DO UPDATE SET relacion = EXCLUDED.relacion;";
-    $res3 = pg_query($conn, $qRel);
-
-    if ($res1 && $res2 && $res3) {
-        pg_query($conn, "COMMIT");
-        $mensaje = "¡Tutor vinculado exitosamente! ✅";
-        $tipoMensaje = "success";
-    } else {
-        pg_query($conn, "ROLLBACK");
-        $mensaje = "Error en Base de Datos: " . pg_last_error($conn);
+    if (empty($curp_tutor) || empty($nombre) || empty($apellido_p) || !$id_parentesco) {
+        $mensaje = "CURP, nombre, apellido paterno y parentesco son obligatorios ⚠️";
         $tipoMensaje = "error";
+    } else {
+        try {
+            $pdo->beginTransaction();
+
+            // PASO 1: Resolver el id_nna a partir de su CURP
+            $stmtNna = $pdo->prepare("SELECT id_nna FROM nna WHERE curp = :curp LIMIT 1");
+            $stmtNna->execute([':curp' => $curp_nna]);
+            $id_nna = $stmtNna->fetchColumn();
+
+            if (!$id_nna) {
+                throw new PDOException("NNA no encontrado");
+            }
+
+            // PASO 2: UPSERT del tutor por su CURP (única). Recuperamos id_tutor.
+            $qTutor = "
+                INSERT INTO tutor (curp_tutor, nombre, primer_apellido, segundo_apellido, telefono, correo, es_adulto_mayor)
+                VALUES (:curp, :nombre, :ap_p, :ap_m, :tel, :correo, :adulto)
+                ON CONFLICT (curp_tutor) DO UPDATE SET
+                    nombre           = EXCLUDED.nombre,
+                    primer_apellido  = EXCLUDED.primer_apellido,
+                    segundo_apellido = EXCLUDED.segundo_apellido,
+                    telefono         = EXCLUDED.telefono,
+                    correo           = EXCLUDED.correo,
+                    es_adulto_mayor  = EXCLUDED.es_adulto_mayor
+                RETURNING id_tutor
+            ";
+            $stmtTutor = $pdo->prepare($qTutor);
+            $stmtTutor->execute([
+                ':curp'   => $curp_tutor,
+                ':nombre' => $nombre,
+                ':ap_p'   => $apellido_p,
+                ':ap_m'   => $apellido_m !== '' ? $apellido_m : null,
+                ':tel'    => $telefono !== '' ? $telefono : null,
+                ':correo' => $correo !== '' ? $correo : null,
+                ':adulto' => $es_adulto
+            ]);
+            $id_tutor = $stmtTutor->fetchColumn();
+
+            // PASO 3: Vincular NNA-tutor con el parentesco (tabla puente)
+            $qRel = "
+                INSERT INTO nna_tutor (id_nna, id_tutor, id_parentesco, es_contacto_ppal, fecha_vinculacion)
+                VALUES (:id_nna, :id_tutor, :id_parentesco, TRUE, CURRENT_DATE)
+                ON CONFLICT (id_nna, id_tutor) DO UPDATE SET
+                    id_parentesco = EXCLUDED.id_parentesco
+            ";
+            $stmtRel = $pdo->prepare($qRel);
+            $stmtRel->execute([
+                ':id_nna'        => $id_nna,
+                ':id_tutor'      => $id_tutor,
+                ':id_parentesco' => $id_parentesco
+            ]);
+
+            $pdo->commit();
+            $mensaje = "¡Tutor vinculado exitosamente! ✅";
+            $tipoMensaje = "success";
+
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            if (strpos($e->getMessage(), 'chk_curp_tutor') !== false) {
+                $mensaje = "La CURP del tutor debe tener 18 caracteres ⚠️";
+            } elseif (strpos($e->getMessage(), 'chk_correo_tutor') !== false) {
+                $mensaje = "El formato del correo no es válido ⚠️";
+            } else {
+                $mensaje = "Error al vincular el tutor ❌";
+            }
+            $tipoMensaje = "error";
+        }
     }
 }
 ?>
@@ -95,7 +135,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && !empty($curp_nna)) {
     <h1>Asignar Tutor</h1>
 
     <?php if ($mensaje): ?>
-        <div class="alert <?= $tipoMensaje ?>"><?= $mensaje ?></div>
+        <div class="alert <?= $tipoMensaje ?>"><?= htmlspecialchars($mensaje) ?></div>
     <?php endif; ?>
 
     <div style="background:#e3f2fd; padding:10px; border-left:5px solid #2196f3; margin-bottom:20px;">
@@ -126,55 +166,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && !empty($curp_nna)) {
             </div>
             <div>
                 <label>Parentesco / Relación:</label>
-                <select name="relacion" required>
+                <select name="id_parentesco" required>
                     <option value="" disabled selected>Seleccione...</option>
-                    <option value="MADRE">MADRE</option>
-                    <option value="PADRE">PADRE</option>
-                    <option value="ABUELO/A">ABUELO/A</option>
-                    <option value="TÍO/A">TÍO/A</option>
-                    <option value="HERMANO/A">HERMANO/A</option>
-                    <option value="TUTOR LEGAL">TUTOR LEGAL</option>
+                    <?php foreach ($parentescos as $p): ?>
+                        <option value="<?= (int) $p['id'] ?>"><?= htmlspecialchars(mb_strtoupper($p['nombre'], 'UTF-8')) ?></option>
+                    <?php endforeach; ?>
                 </select>
-            </div>
-        </div>
-
-        <div class="row">
-            <div>
-                <label>Sexo:</label>
-                <select name="sexo">
-                    <option value="Masculino">Masculino</option>
-                    <option value="Femenino">Femenino</option>
-                </select>
-            </div>
-            <div>
-                <label>Fecha de Nacimiento:</label>
-                <input type="date" name="nacimiento" required>
-            </div>
-        </div>
-
-        <h3 style="margin-top:20px; color:#2196f3; border-bottom:1px solid #ddd;">Domicilio del Tutor</h3>
-        <label>Calle:</label>
-        <input type="text" name="calle" required>
-
-        <div class="row">
-            <div>
-                <label>Núm Ext:</label>
-                <input type="text" name="num_ext" required>
-            </div>
-            <div>
-                <label>Núm Int:</label>
-                <input type="text" name="num_int">
-            </div>
-        </div>
-
-        <div class="row">
-            <div>
-                <label>Municipio:</label>
-                <input type="text" name="municipio" required>
-            </div>
-            <div>
-                <label>Estado:</label>
-                <input type="text" name="estado_dir" value="CIUDAD DE MÉXICO" required>
             </div>
         </div>
 

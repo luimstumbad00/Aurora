@@ -32,9 +32,9 @@ if (isset($_GET['status'])) {
 
 // Procesar el cambio de contraseña
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['cambiar_pass'])) {
-    $pass_actual = $_POST['pass_actual'];
-    $pass_nueva = $_POST['pass_nueva'];
-    $pass_confirma = $_POST['pass_confirma'];
+    $pass_actual   = $_POST['pass_actual'] ?? '';
+    $pass_nueva    = $_POST['pass_nueva'] ?? '';
+    $pass_confirma = $_POST['pass_confirma'] ?? '';
 
     // Validar que las nuevas coincidan
     if ($pass_nueva !== $pass_confirma) {
@@ -42,27 +42,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['cambiar_pass'])) {
         exit();
     }
 
-    // Buscar la contraseña actual en la BD
-    $query_verificar = "SELECT contrasena FROM usuario WHERE curp = $1";
-    $result_verificar = pg_query_params($conn, $query_verificar, array($curp));
-    $row = pg_fetch_assoc($result_verificar);
+    try {
+        // Buscar la contraseña actual en la BD
+        $query_verificar = "SELECT contrasena FROM usuario_sistema WHERE curp = :curp";
+        $stmt_verificar = $pdo->prepare($query_verificar);
+        $stmt_verificar->execute([':curp' => $curp]);
+        $row = $stmt_verificar->fetch(PDO::FETCH_ASSOC);
 
-    // Comparar la contraseña actual escrita con la de la BD
-    if ($row['contrasena'] === $pass_actual) {
-        // Si es correcta, actualizamos
-        $query_update = "UPDATE usuario SET contrasena = $1 WHERE curp = $2";
-        $result_update = pg_query_params($conn, $query_update, array($pass_nueva, $curp));
+        // Comparación directa en texto plano (sin hash)
+        if ($row && $row['contrasena'] === $pass_actual) {
+            // Si es correcta, guardamos la nueva tal cual
+            $query_update = "UPDATE usuario_sistema SET contrasena = :nuevo WHERE curp = :curp";
+            $stmt_update = $pdo->prepare($query_update);
+            $ok = $stmt_update->execute([
+                ':nuevo' => $pass_nueva,
+                ':curp'  => $curp
+            ]);
 
-        if ($result_update) {
-            header("Location: " . $_SERVER['PHP_SELF'] . "?status=success");
-            exit();
+            if ($ok) {
+                header("Location: " . $_SERVER['PHP_SELF'] . "?status=success");
+                exit();
+            } else {
+                header("Location: " . $_SERVER['PHP_SELF'] . "?status=error_db");
+                exit();
+            }
         } else {
-            header("Location: " . $_SERVER['PHP_SELF'] . "?status=error_db");
+            // La contraseña actual no cuadra
+            header("Location: " . $_SERVER['PHP_SELF'] . "?status=error_actual");
             exit();
         }
-    } else {
-        // La contraseña actual no cuadra
-        header("Location: " . $_SERVER['PHP_SELF'] . "?status=error_actual");
+    } catch (PDOException $e) {
+        // En producción: error_log($e->getMessage());
+        header("Location: " . $_SERVER['PHP_SELF'] . "?status=error_db");
         exit();
     }
 }

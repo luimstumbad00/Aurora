@@ -13,32 +13,88 @@ if (empty($curp)) {
     die("Error: CURP no proporcionada.");
 }
 
-// CORRECCIÓN: Consulta adaptada a la superentidad 'persona' y manejo de columnas de domicilio eliminadas
-$query = "SELECT 
-            pn.nombre, 
-            pn.apellido_paterno, 
-            pn.apellido_materno, 
-            pn.fecha_nacimiento, 
-            pn.sexo,
-            n.*, 
-            pt.nombre as t_nom, 
-            pt.apellido_paterno as t_ap, 
-            t.telefono as t_tel,
-            NULL AS calle, 
-            NULL AS num_ext, 
-            NULL AS num_int
-          FROM nna n 
-          JOIN persona pn ON n.curp = pn.curp
-          LEFT JOIN nna_tutor nt ON n.curp = nt.curp_nna 
-          LEFT JOIN tutor t ON nt.curp_tutor = t.curp 
-          LEFT JOIN persona pt ON t.curp = pt.curp
-          WHERE n.curp = '" . pg_escape_string($conn, $curp) . "'";
+// Modelo normalizado:
+//   nombre/datos vienen de nna (sin tabla persona)
+//   sexo        -> cat_sexo
+//   dirección   -> nna.dir_actual -> direccion -> cat_municipio -> entidad_federativa
+//   tutor       -> nna_tutor(id_nna,id_tutor) -> tutor (el contacto principal)
+$query = "
+    SELECT 
+        n.id_nna,
+        n.curp,
+        n.nombre, 
+        n.prim_ap        AS apellido_paterno, 
+        n.seg_ap         AS apellido_materno, 
+        n.fecha_nacimiento, 
+        s.nombre         AS sexo,
+        n.situacion_calle,
+        n.es_migrante,
+        n.es_refugiado,
+        n.poblacion_indigena,
+        d.calle_dir      AS calle,
+        d.no_ext_dir     AS num_ext,
+        d.no_int_dir     AS num_int,
+        d.colonia_abierta,
+        d.codigo_postal,
+        cm.nom_mun       AS municipio,
+        ef.nom_ent       AS estado_dir,
+        tut.t_nom,
+        tut.t_ap,
+        tut.t_tel,
+        pais.nacionalidad
+    FROM nna n
+    LEFT JOIN cat_sexo s             ON s.id = n.id_sexo
+    LEFT JOIN direccion d            ON d.id_dir = n.dir_actual
+    LEFT JOIN cat_municipio cm       ON cm.id_municipio = d.id_municipio
+    LEFT JOIN entidad_federativa ef  ON ef.id_ent = cm.id_ent
+    LEFT JOIN LATERAL (
+        SELECT t.nombre          AS t_nom,
+               t.primer_apellido AS t_ap,
+               t.telefono        AS t_tel
+        FROM nna_tutor nt
+        JOIN tutor t ON t.id_tutor = nt.id_tutor
+        WHERE nt.id_nna = n.id_nna
+        ORDER BY nt.es_contacto_ppal DESC
+        LIMIT 1
+    ) tut ON true
+    LEFT JOIN LATERAL (
+        SELECT string_agg(cp.nombre, ', ') AS nacionalidad
+        FROM nna_nacionalidad nn
+        JOIN cat_pais cp ON cp.id = nn.id_pais
+        WHERE nn.id_nna = n.id_nna
+    ) pais ON true
+    WHERE n.curp = :curp
+    LIMIT 1
+";
 
-$res = pg_query($conn, $query);
-$nna = pg_fetch_assoc($res);
+try {
+    $stmt = $pdo->prepare($query);
+    $stmt->execute([':curp' => $curp]);
+    $nna = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // En producción: error_log($e->getMessage());
+    die("Error al consultar el expediente.");
+}
 
 if (!$nna) {
     die("NNA no encontrado en el sistema Aurora.");
+}
+
+// Cargar contactos adicionales del NNA (nna_contacto_adicional + cat_tipo_contacto)
+$contactos = [];
+try {
+    $stmtC = $pdo->prepare("
+        SELECT ca.valor_contacto, ca.descripcion, tc.nombre AS tipo
+        FROM nna_contacto_adicional ca
+        JOIN cat_tipo_contacto tc ON tc.id = ca.id_tipo_contacto
+        WHERE ca.id_nna = :id_nna
+        ORDER BY tc.nombre
+    ");
+    $stmtC->execute([':id_nna' => $nna['id_nna']]);
+    $contactos = $stmtC->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // En producción: error_log($e->getMessage());
+    $contactos = [];
 }
 ?>
 
@@ -88,19 +144,22 @@ if (!$nna) {
 
     <div class="seccion-titulo">Datos de Identidad</div>
     <div class="grid-datos">
-        <div class="dato-box"><label>Nombre Completo</label><span><?= htmlspecialchars($nna['nombre'] . " " . $nna['apellido_paterno'] . " " . $nna['apellido_materno']) ?></span></div>
-        <div class="dato-box"><label>CURP</label><span><?= htmlspecialchars($nna['curp']) ?></span></div>
+        <div class="dato-box"><label>Nombre Completo</label><span><?= htmlspecialchars(trim($nna['nombre'] . " " . $nna['apellido_paterno'] . " " . ($nna['apellido_materno'] ?? ''))) ?></span></div>
+        <div class="dato-box"><label>CURP</label><span><?= htmlspecialchars($nna['curp'] ?? 'No registrada') ?></span></div>
         <div class="dato-box"><label>Fecha de Nacimiento</label><span><?= htmlspecialchars($nna['fecha_nacimiento']) ?></span></div>
-        <div class="dato-box"><label>Sexo</label><span><?= htmlspecialchars(strtoupper($nna['sexo'])) ?></span></div>
-        <div class="dato-box"><label>Nacionalidad</label><span><?= htmlspecialchars(strtoupper($nna['nacionalidad'])) ?></span></div>
+        <div class="dato-box"><label>Sexo</label><span><?= htmlspecialchars(strtoupper($nna['sexo'] ?? 'No especificado')) ?></span></div>
+        <div class="dato-box"><label>Nacionalidad</label><span><?= htmlspecialchars(strtoupper($nna['nacionalidad'] ?? 'No especificada')) ?></span></div>
     </div>
 
     <div class="seccion-titulo">Ubicación y Domicilio</div>
     <div class="grid-datos">
-        <!-- CORRECCIÓN: Se agrega fallback 'No registrado' por si los valores son nulos -->
         <div class="dato-box"><label>Calle</label><span><?= htmlspecialchars($nna['calle'] ?? 'No registrado') ?></span></div>
         <div class="dato-box"><label>Núm. Exterior</label><span><?= htmlspecialchars($nna['num_ext'] ?? 'No registrado') ?></span></div>
         <div class="dato-box"><label>Núm. Interior</label><span><?= htmlspecialchars($nna['num_int'] ?? 'N/A') ?></span></div>
+        <div class="dato-box"><label>Colonia</label><span><?= htmlspecialchars($nna['colonia_abierta'] ?? 'No registrada') ?></span></div>
+        <div class="dato-box"><label>Código Postal</label><span><?= htmlspecialchars($nna['codigo_postal'] ?? 'N/A') ?></span></div>
+        <div class="dato-box"><label>Municipio</label><span><?= htmlspecialchars($nna['municipio'] ?? 'No registrado') ?></span></div>
+        <div class="dato-box"><label>Estado</label><span><?= htmlspecialchars($nna['estado_dir'] ?? 'No registrado') ?></span></div>
         <div class="dato-box"><label>Tutor Responsable</label><span><?= $nna['t_nom'] ? htmlspecialchars($nna['t_nom']." ".$nna['t_ap']) : 'SIN TUTOR ASIGNADO' ?></span></div>
     </div>
 
@@ -130,6 +189,23 @@ if (!$nna) {
                 <?= $nna['poblacion_indigena'] == 't' ? 'SÍ' : 'NO' ?>
             </span>
         </div>
+    </div>
+
+    <div class="seccion-titulo">Contactos Adicionales</div>
+    <div class="grid-datos">
+        <?php if (count($contactos) > 0): ?>
+            <?php foreach ($contactos as $c): ?>
+                <div class="dato-box">
+                    <label><?= htmlspecialchars($c['tipo']) ?></label>
+                    <span><?= htmlspecialchars($c['valor_contacto']) ?></span>
+                    <?php if (!empty($c['descripcion'])): ?>
+                        <br><small style="color:#7f8c8d;"><?= htmlspecialchars($c['descripcion']) ?></small>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <div class="dato-box"><span style="color:#95a5a6; font-style:italic;">Sin contactos adicionales registrados</span></div>
+        <?php endif; ?>
     </div>
 
 </div>

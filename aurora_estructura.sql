@@ -1,22 +1,14 @@
 -- ============================================================
---  PROYECTO AURORA — SCRIPT UNIFICADO Y DEFINITIVO v6.3 (FNBC)
+--  PROYECTO AURORA — SCRIPT UNIFICADO Y DEFINITIVO v6.4 (FNBC)
 --  PostgreSQL | Arquitecto: Senior DB Architect
 --  Normalización: 1FN ✓  2FN ✓  3FN ✓  FNBC ✓
 --  25 relaciones · Modelo Geográfico Híbrido · Catálogos FUD/LGDNNA
 -- ============================================================
 --
---  CAMBIOS RESPECTO A v6.2:
---  [DATA] cat_lengua      → +Español, LSM, Inglés, Francés, Francés Criollo
---                            Haitiano, Portugués, Árabe, Mandarin, Ruso,
---                            Alemán, Italiano, lenguas indígenas
---                            centroamericanas (Mam, Kiche, Kaqchikel, Garífuna)
---                            y valor 'Otra'
---  [DATA] cat_municipio   → +57 municipios de prueba en 16 estados
---                            (referencia INEGI para importación masiva)
---
---  INTACTO DESDE v6.2:
---  Todas las tablas, estructura, FKs, índices y normalización
--- ============================================================
+--  CAMBIOS RESPECTO A v6.3:
+--  [FIX] cat_grupo_sanguineo → VARCHAR(10) → VARCHAR(20) ('Desconocido' = 11 chars)
+--  [FIX] Índices duplicados eliminados (idx_dir_municipio, idx_dir_cp, idx_municipio_ent)
+--  [NEW] Usuario administrador de prueba insertado al final
 --
 --  HISTORIAL DE VERSIONES:
 --  v3   → Catálogos reales (ENUMs eliminados)
@@ -26,6 +18,9 @@
 --  v6.1 → cat_tipo_contacto normalizado (tipo_contacto VARCHAR → FK)
 --  v6.2 → cat_grupo_sanguineo + id_grupo_sanguineo en nna
 --  v6.3 → cat_lengua completo + cat_municipio con datos de prueba
+--         + cat_escolaridad SEP/INEA + cat_nivel_competencia MCER
+--  v6.4 → FIX VARCHAR(20) en cat_grupo_sanguineo + índices duplicados
+--         + usuario administrador de prueba
 -- ============================================================
 
 
@@ -108,10 +103,6 @@ COMMENT ON TABLE cat_grado_dependencia IS 'Catálogo de grados de dependencia fu
 -- ----------------------------------------------------------
 --  2E. cat_nivel_competencia
 --  Fuente: FUD/LGDNNA + Marco Común Europeo de Referencia (MCER)
---  Decisión: se incluyen AMBAS escalas para máxima compatibilidad.
---  La escala funcional (Básico/Intermedio/Avanzado/Nativo) se usa
---  para lenguas indígenas y LSM donde el MCER no aplica.
---  La escala MCER (A1-C2) se usa para lenguas extranjeras.
 -- ----------------------------------------------------------
 CREATE TABLE cat_nivel_competencia (
     id      SERIAL          PRIMARY KEY,
@@ -119,21 +110,16 @@ CREATE TABLE cat_nivel_competencia (
 );
 
 INSERT INTO cat_nivel_competencia (nombre) VALUES
-    -- Escala funcional FUD/LGDNNA
-    -- (aplica para lenguas indígenas, LSM y registro general)
     ('Básico'),
     ('Intermedio'),
     ('Avanzado'),
     ('Nativo / Lengua Materna'),
-    -- Escala MCER — Marco Común Europeo de Referencia
-    -- (aplica para lenguas extranjeras: inglés, francés, etc.)
     ('A1 - Acceso'),
     ('A2 - Plataforma'),
     ('B1 - Umbral'),
     ('B2 - Avanzado'),
     ('C1 - Dominio Operativo Eficaz'),
     ('C2 - Maestría'),
-    -- Valor especial
     ('No evaluado');
 
 COMMENT ON TABLE cat_nivel_competencia IS
@@ -174,10 +160,8 @@ CREATE TABLE cat_lengua (
 );
 
 INSERT INTO cat_lengua (nombre) VALUES
-    -- Lenguas nacionales de uso general
     ('Español'),
     ('Lengua de Señas Mexicana (LSM)'),
-    -- Lenguas extranjeras relevantes para NNA migrantes y refugiados
     ('Inglés'),
     ('Francés'),
     ('Francés Criollo Haitiano'),
@@ -187,19 +171,16 @@ INSERT INTO cat_lengua (nombre) VALUES
     ('Ruso'),
     ('Alemán'),
     ('Italiano'),
-    -- Lenguas indígenas nacionales (INALI)
     ('Akateko'),('Amuzgo'),('Awakateko'),('Ayapaneco'),('Chatino'),('Chichimeca Jonaz'),('Chinanteco'),('Chocholteco'),('Chol'),('Chontal de Oaxaca'),('Chontal de Tabasco'),
     ('Chuj'),('Cochimi'),('Cora'),('Cuicateco'),('Guarijio'),('Huave'),('Huichol'),('Ixcateco'),('Ixil'),('Jacalteko'),('Kaqchikel'),('Kickapoo'),('Kiche'),
     ('Kiliwa'),('Kumiai'),('Lacandon'),('Mam'),('Mateo'),('Matlatzinca'),('Maya Yucateco'),('Mazahua'),('Mazateco'),('Mixe'),('Mixteco'),('Nahuatl'),('Oluteco'),
     ('Opata'),('Otomi'),('Paipai'),('Pame'),('Papago'),('Pima'),('Popoloca'),('Popoluca'),('Popoluca de la Sierra'),('Qanjobal'),('Qeqchi'),('Qatok'),
     ('Sakapulteko'),('Sayulteco'),('Seri'),('Sipakapense'),('Tarahumara'),('Tarasco Purepecha'),('Teko'),('Tektiteko'),('Tepehua'),('Tepehuano del Norte'),('Tepehuano del Sur'),
     ('Texistepequeño'),('Tlapaneco Mephaa'),('Tlahuica'),('Totonaco'),('Triqui'),('Tseltal'),('Tsotsil'),('Uspanteko'),('Yaqui'),('Zapoteco'),('Zoque'),
-    -- Lenguas indígenas centroamericanas (NNA migrantes)
     ('Mam guatemalteco'),('Kiche guatemalteco'),('Kaqchikel guatemalteco'),('Garífuna'),
-    -- Otras
     ('Otra');
 
-COMMENT ON TABLE cat_lengua IS 'Catálogo de lenguas habladas/señadas por NNA conforme al FUD/LGDNNA. Incluye: lenguas nacionales, LSM, lenguas extranjeras para NNA migrantes/refugiados, lenguas indígenas INALI y lenguas indígenas centroamericanas.';
+COMMENT ON TABLE cat_lengua IS 'Catálogo de lenguas habladas/señadas por NNA conforme al FUD/LGDNNA. Incluye lenguas nacionales, LSM, extranjeras, indígenas INALI y centroamericanas.';
 
 -- ----------------------------------------------------------
 --  2H. cat_pais
@@ -224,14 +205,11 @@ INSERT INTO cat_pais (nombre) VALUES
     ('Siria'),('Somalia'),('Sudáfrica'),('Sudán'),('Suazilandia'),('Suecia'),('Suiza'),('Surinam'),('Tailandia'),('Taiwán'),('Tanzania'),('Togo'),('Trinidad y Tobago'),
     ('Túnez'),('Turquía'),('Uganda'),('Uruguay'),('Venezuela'),('Vietnam del Norte'),('Yemen'),('Yibuti'),('Yugoslavia'),('Zaire'),('Zambia'),('Zimbabue');
 
-COMMENT ON TABLE cat_pais IS 'Catálogo de países de nacionalidad/origen del NNA. Base inicial para NNA migrantes y refugiados conforme al FUD/LGDNNA.';
+COMMENT ON TABLE cat_pais IS 'Catálogo de países de nacionalidad/origen del NNA conforme al FUD/LGDNNA.';
 
 -- ----------------------------------------------------------
 --  2I. cat_escolaridad
---  Fuente: SEP — Sistema Educativo Nacional (SEN)
---  Homologado con los niveles oficiales de la SEP incluyendo
---  modalidades especiales y categorías de rezago educativo
---  conforme al INEA y el FUD/LGDNNA.
+--  Fuente: SEP — Sistema Educativo Nacional (SEN) + INEA
 -- ----------------------------------------------------------
 CREATE TABLE cat_escolaridad (
     id      SERIAL          PRIMARY KEY,
@@ -239,35 +217,26 @@ CREATE TABLE cat_escolaridad (
 );
 
 INSERT INTO cat_escolaridad (nombre) VALUES
-    -- Sin escolaridad
     ('Sin escolaridad'),
-    -- Educación Básica — Preescolar (SEP)
     ('Preescolar'),
     ('Preescolar Incompleto'),
-    -- Educación Básica — Primaria (SEP)
     ('Primaria Incompleta'),
     ('Primaria Completa'),
-    -- Educación Básica — Secundaria (SEP)
     ('Secundaria Incompleta'),
     ('Secundaria Completa'),
-    -- Educación Media Superior (SEP)
     ('Bachillerato o Preparatoria Incompleta'),
     ('Bachillerato o Preparatoria Completa'),
     ('Carrera Técnica o Vocacional'),
-    -- Educación Superior
     ('Licenciatura Incompleta'),
     ('Licenciatura Completa'),
-    -- Modalidades especiales SEP/INEA
     ('Educación Especial'),
     ('Centro de Atención Múltiple (CAM)'),
     ('Educación para Adultos (INEA)'),
     ('Primaria para Adultos (INEA)'),
     ('Secundaria para Adultos (INEA / Telesecundaria)'),
-    -- Rezago educativo INEA
     ('Rezago Educativo — Analfabeta'),
     ('Rezago Educativo — Sin Primaria Completa'),
     ('Rezago Educativo — Sin Secundaria Completa'),
-    -- Valor especial
     ('No aplica / Menor de edad sin escolaridad formal'),
     ('Desconocido');
 
@@ -340,18 +309,15 @@ INSERT INTO cat_tipo_contacto (nombre) VALUES
     ('Teléfono de Albergue / Refugio'),
     ('Enlace Institucional TS');
 
-COMMENT ON TABLE cat_tipo_contacto IS 'Catálogo de tipos de contacto alternativo del NNA. Normaliza tipo_contacto VARCHAR en nna_contacto_adicional.';
+COMMENT ON TABLE cat_tipo_contacto IS 'Catálogo de tipos de contacto alternativo del NNA.';
 
 -- ----------------------------------------------------------
---  2M. cat_grupo_sanguineo  ← NUEVO (v6.2)
---  Sistema ABO + factor Rh (8 grupos estándar)
---  + 2 grupos especiales reconocidos clínicamente
---  + 'Desconocido' para registro sin dato confirmado
---  DF: {id} → {nombre}  |  FNBC ✓
+--  2M. cat_grupo_sanguineo
+--  FIX v6.4: VARCHAR(10) → VARCHAR(20) ('Desconocido' tiene 11 caracteres)
 -- ----------------------------------------------------------
 CREATE TABLE cat_grupo_sanguineo (
     id      SERIAL          PRIMARY KEY,
-    nombre  VARCHAR(10)     NOT NULL UNIQUE
+    nombre  VARCHAR(20)     NOT NULL UNIQUE  -- FIX: era VARCHAR(10)
 );
 
 INSERT INTO cat_grupo_sanguineo (nombre) VALUES
@@ -367,13 +333,12 @@ INSERT INTO cat_grupo_sanguineo (nombre) VALUES
     ('Rh nulo'),
     ('Desconocido');
 
-COMMENT ON TABLE cat_grupo_sanguineo IS 'v6.2: Catálogo de grupos sanguíneos sistema ABO + factor Rh. Incluye grupos especiales (Bombay, Rh nulo) y valor Desconocido para registro sin dato confirmado.';
+COMMENT ON TABLE cat_grupo_sanguineo IS 'Catálogo de grupos sanguíneos sistema ABO + factor Rh. Incluye grupos especiales (Bombay, Rh nulo) y valor Desconocido.';
 
 
 -- ============================================================
 --  FASE 3: GEOGRAFÍA NORMALIZADA — MODELO HÍBRIDO (FNBC)
 --  Jerarquía: entidad_federativa → cat_municipio → direccion
---  INTACTO DESDE v5 — NO MODIFICAR
 -- ============================================================
 
 -- ----------------------------------------------------------
@@ -408,91 +373,30 @@ CREATE TABLE cat_municipio (
 
 COMMENT ON TABLE  cat_municipio         IS '3FN/FNBC: Catálogo de municipios/alcaldías vinculados a su entidad federativa.';
 COMMENT ON COLUMN cat_municipio.nom_mun IS 'Nombre del municipio o alcaldía.';
-COMMENT ON COLUMN cat_municipio.id_ent  IS 'FK a entidad_federativa. El municipio pertenece a una sola entidad.';
+COMMENT ON COLUMN cat_municipio.id_ent  IS 'FK a entidad_federativa.';
 
 CREATE INDEX idx_municipio_ent ON cat_municipio(id_ent);
 
--- Datos de prueba — municipios representativos por estado
--- Referencia: id_ent corresponde al orden de inserción de entidad_federativa
--- 1=Aguascalientes, 2=Baja California, 3=Baja California Sur,
--- 4=Campeche, 5=Chiapas, 6=Chihuahua, 7=Ciudad de México,
--- 8=Coahuila, 9=Colima, 10=Durango, 11=Guanajuato, 12=Guerrero,
--- 13=Hidalgo, 14=Jalisco, 15=México, 16=Michoacán, 17=Morelos,
--- 18=Nayarit, 19=Nuevo León, 20=Oaxaca, 21=Puebla, 22=Querétaro,
--- 23=Quintana Roo, 24=San Luis Potosí, 25=Sinaloa, 26=Sonora,
--- 27=Tabasco, 28=Tamaulipas, 29=Tlaxcala, 30=Veracruz,
--- 31=Yucatán, 32=Zacatecas
 INSERT INTO cat_municipio (nom_mun, id_ent) VALUES
-    -- Aguascalientes (1)
-    ('Aguascalientes',          1),
-    ('Jesús María',             1),
-    ('Calvillo',                1),
-    -- Baja California (2)
-    ('Tijuana',                 2),
-    ('Mexicali',                2),
-    ('Ensenada',                2),
-    -- Chiapas (5)
-    ('Tuxtla Gutiérrez',        5),
-    ('San Cristóbal de las Casas', 5),
-    ('Tapachula',               5),
-    ('Comitán de Domínguez',    5),
-    -- Chihuahua (6)
-    ('Chihuahua',               6),
-    ('Ciudad Juárez',           6),
-    ('Delicias',                6),
-    -- Ciudad de México (7)
-    ('Álvaro Obregón',          7),
-    ('Benito Juárez',           7),
-    ('Cuauhtémoc',              7),
-    ('Gustavo A. Madero',       7),
-    ('Iztapalapa',              7),
-    ('Miguel Hidalgo',          7),
-    ('Tlalpan',                 7),
-    ('Xochimilco',              7),
-    -- Jalisco (14)
-    ('Guadalajara',             14),
-    ('Zapopan',                 14),
-    ('Tlaquepaque',             14),
-    ('Puerto Vallarta',         14),
-    -- Estado de México (15)
-    ('Ecatepec de Morelos',     15),
-    ('Nezahualcóyotl',          15),
-    ('Toluca',                  15),
-    ('Naucalpan de Juárez',     15),
-    ('Tlalnepantla de Baz',     15),
-    -- Nuevo León (19)
-    ('Monterrey',               19),
-    ('San Nicolás de los Garza',19),
-    ('Guadalupe',               19),
-    ('Apodaca',                 19),
-    -- Oaxaca (20)
-    ('Oaxaca de Juárez',        20),
-    ('San Juan Bautista Tuxtepec', 20),
-    ('Juchitán de Zaragoza',    20),
-    -- Puebla (21)
-    ('Puebla',                  21),
-    ('Tehuacán',                21),
-    ('San Martín Texmelucan',   21),
-    -- Sonora (26)
-    ('Hermosillo',              26),
-    ('Nogales',                 26),
-    ('Ciudad Obregón',          26),
-    -- Tabasco (27)
-    ('Centro',                  27),
-    ('Cárdenas',                27),
-    ('Comalcalco',              27),
-    -- Veracruz (30)
-    ('Veracruz',                30),
-    ('Xalapa',                  30),
-    ('Coatzacoalcos',           30),
-    ('Córdoba',                 30),
-    -- Yucatán (31)
-    ('Mérida',                  31),
-    ('Valladolid',              31),
-    ('Progreso',                31);
+    ('Aguascalientes',             1), ('Jesús María',              1), ('Calvillo',                  1),
+    ('Tijuana',                    2), ('Mexicali',                 2), ('Ensenada',                  2),
+    ('Tuxtla Gutiérrez',           5), ('San Cristóbal de las Casas',5), ('Tapachula',                5), ('Comitán de Domínguez',      5),
+    ('Chihuahua',                  6), ('Ciudad Juárez',            6), ('Delicias',                  6),
+    ('Álvaro Obregón',             7), ('Benito Juárez',            7), ('Cuauhtémoc',                7),
+    ('Gustavo A. Madero',          7), ('Iztapalapa',               7), ('Miguel Hidalgo',            7),
+    ('Tlalpan',                    7), ('Xochimilco',               7),
+    ('Guadalajara',               14), ('Zapopan',                 14), ('Tlaquepaque',              14), ('Puerto Vallarta',          14),
+    ('Ecatepec de Morelos',       15), ('Nezahualcóyotl',          15), ('Toluca',                   15),
+    ('Naucalpan de Juárez',       15), ('Tlalnepantla de Baz',     15),
+    ('Monterrey',                 19), ('San Nicolás de los Garza',19), ('Guadalupe',                19), ('Apodaca',                  19),
+    ('Oaxaca de Juárez',          20), ('San Juan Bautista Tuxtepec',20), ('Juchitán de Zaragoza',   20),
+    ('Puebla',                    21), ('Tehuacán',                21), ('San Martín Texmelucan',    21),
+    ('Hermosillo',                26), ('Nogales',                 26), ('Ciudad Obregón',           26),
+    ('Centro',                    27), ('Cárdenas',                27), ('Comalcalco',               27),
+    ('Veracruz',                  30), ('Xalapa',                  30), ('Coatzacoalcos',            30), ('Córdoba',                  30),
+    ('Mérida',                    31), ('Valladolid',              31), ('Progreso',                 31);
 
--- NOTA: Este es un conjunto de prueba con municipios representativos.
--- Para producción, importar el catálogo completo INEGI (2,469 municipios)
+-- NOTA: Datos de prueba. Para producción importar catálogo INEGI completo (2,469 municipios)
 -- desde: https://www.inegi.org.mx/app/ageeml/
 
 -- ----------------------------------------------------------
@@ -511,22 +415,18 @@ CREATE TABLE direccion (
     CONSTRAINT chk_codigo_postal CHECK (codigo_postal ~ '^\d{5}$')
 );
 
-COMMENT ON TABLE  direccion                 IS 'Modelo Geográfico Híbrido (v5): domicilio completo con colonia y CP como texto abierto, anclado al municipio normalizado vía FK.';
-COMMENT ON COLUMN direccion.calle_dir       IS 'Nombre de la calle o vialidad.';
-COMMENT ON COLUMN direccion.no_ext_dir      IS 'Número exterior.';
-COMMENT ON COLUMN direccion.no_int_dir      IS 'Número interior (depto, local, etc.).';
-COMMENT ON COLUMN direccion.ref_dir         IS 'Referencia adicional (entre calles, cerca de, etc.).';
-COMMENT ON COLUMN direccion.colonia_abierta IS 'Nombre de la colonia o asentamiento en texto libre.';
-COMMENT ON COLUMN direccion.codigo_postal   IS 'Código postal de 5 dígitos. Validado por CONSTRAINT chk_codigo_postal.';
+COMMENT ON TABLE  direccion                 IS 'Modelo Geográfico Híbrido: domicilio con colonia y CP como texto abierto, anclado al municipio normalizado.';
+COMMENT ON COLUMN direccion.colonia_abierta IS 'Nombre de la colonia en texto libre.';
+COMMENT ON COLUMN direccion.codigo_postal   IS 'Código postal de 5 dígitos.';
 COMMENT ON COLUMN direccion.id_municipio    IS 'FK a cat_municipio. Ancla geográfico normalizado.';
 
+-- FIX v6.4: índices definidos UNA SOLA VEZ aquí, eliminados del bloque de fase 9
 CREATE INDEX idx_dir_municipio ON direccion(id_municipio);
 CREATE INDEX idx_dir_cp        ON direccion(codigo_postal);
 
 
 -- ============================================================
 --  FASE 4: OPERACIÓN DE LA PLATAFORMA
---  INTACTO DESDE v5 — NO MODIFICAR
 -- ============================================================
 
 CREATE TABLE usuario_sistema (
@@ -548,20 +448,17 @@ CREATE TABLE usuario_sistema (
     CONSTRAINT chk_estado_usuario CHECK (estado IN ('ACTIVO', 'INACTIVO', 'SUSPENDIDO'))
 );
 
-COMMENT ON TABLE  usuario_sistema                     IS 'Usuarios operativos de la plataforma Aurora. Reestructurado en 3FN: municipio_labora VARCHAR → id_municipio_labora FK.';
+COMMENT ON TABLE  usuario_sistema                     IS 'Usuarios operativos de la plataforma Aurora.';
 COMMENT ON COLUMN usuario_sistema.contrasena          IS 'Almacenar SIEMPRE como hash (bcrypt/argon2). Nunca texto plano.';
-COMMENT ON COLUMN usuario_sistema.id_rol              IS 'FK a cat_rol_sistema. Define permisos funcionales del usuario.';
-COMMENT ON COLUMN usuario_sistema.id_municipio_labora IS '3FN: FK a cat_municipio. Reemplaza municipio_labora VARCHAR.';
-COMMENT ON COLUMN usuario_sistema.estado              IS 'ACTIVO | INACTIVO | SUSPENDIDO — atributo propio del usuario, NO transitivo, se conserva en FNBC.';
+COMMENT ON COLUMN usuario_sistema.id_rol              IS 'FK a cat_rol_sistema.';
+COMMENT ON COLUMN usuario_sistema.id_municipio_labora IS '3FN: FK a cat_municipio.';
+COMMENT ON COLUMN usuario_sistema.estado              IS 'ACTIVO | INACTIVO | SUSPENDIDO — atributo propio del usuario, NO transitivo.';
 
 
 -- ============================================================
 --  FASE 5: ENTIDADES CENTRALES
 -- ============================================================
 
--- ----------------------------------------------------------
---  5A. TUTOR  (sin cambios en v6.2)
--- ----------------------------------------------------------
 CREATE TABLE tutor (
     id_tutor            SERIAL          PRIMARY KEY,
     curp_tutor          VARCHAR(18)     UNIQUE,
@@ -577,14 +474,8 @@ CREATE TABLE tutor (
 );
 
 COMMENT ON TABLE  tutor                 IS 'Tutores, padres o responsables legales de los NNA registrados.';
-COMMENT ON COLUMN tutor.es_adulto_mayor IS 'TRUE si el tutor tiene 60 años o más (condición de vulnerabilidad adicional).';
+COMMENT ON COLUMN tutor.es_adulto_mayor IS 'TRUE si el tutor tiene 60 años o más.';
 
--- ----------------------------------------------------------
---  5B. NNA — Niñas, Niños y Adolescentes (FUD/LGDNNA)
---  v6.2: +id_grupo_sanguineo FK (nullable)
---  DF: {id_nna} → {todos los atributos}  |  FNBC ✓
---  id_grupo_sanguineo depende únicamente de id_nna → sin transitivas
--- ----------------------------------------------------------
 CREATE TABLE nna (
     id_nna              SERIAL          PRIMARY KEY,
     folio_nna           VARCHAR(50)     NOT NULL UNIQUE,
@@ -596,7 +487,6 @@ CREATE TABLE nna (
     id_sexo             INT             NOT NULL REFERENCES cat_sexo(id)              ON DELETE RESTRICT,
     id_escolaridad      INT             REFERENCES cat_escolaridad(id)                ON DELETE RESTRICT,
     id_motivo_ingreso   INT             REFERENCES cat_motivo_ingreso(id)             ON DELETE RESTRICT,
-    -- v6.2: grupo sanguíneo del NNA
     id_grupo_sanguineo  INT             REFERENCES cat_grupo_sanguineo(id)            ON DELETE RESTRICT,
     dir_actual          INT             REFERENCES direccion(id_dir)                  ON DELETE SET NULL,
     luga_nac_nna        INT             REFERENCES entidad_federativa(id_ent)         ON DELETE SET NULL,
@@ -611,29 +501,25 @@ CREATE TABLE nna (
     CONSTRAINT chk_fecha_nac_nna CHECK (fecha_nacimiento <= CURRENT_DATE)
 );
 
-COMMENT ON TABLE  nna                      IS 'Registro central de NNA conforme al FUD y la LGDNNA. v6.2: +id_grupo_sanguineo.';
-COMMENT ON COLUMN nna.folio_nna            IS 'Folio único de ingreso asignado por el sistema o autoridad competente.';
-COMMENT ON COLUMN nna.id_sexo              IS 'FK a cat_sexo.';
-COMMENT ON COLUMN nna.id_escolaridad       IS 'FK a cat_escolaridad. Nivel educativo actual del NNA conforme al FUD/LGDNNA.';
-COMMENT ON COLUMN nna.id_motivo_ingreso    IS 'FK a cat_motivo_ingreso. Causa principal de ingreso al sistema de protección conforme al FUD/LGDNNA.';
-COMMENT ON COLUMN nna.id_grupo_sanguineo   IS 'v6.2: FK a cat_grupo_sanguineo. Nullable: se registra cuando el dato está disponible. Usar Desconocido si se ingresa sin confirmación.';
-COMMENT ON COLUMN nna.dir_actual           IS 'FK a direccion. Domicilio actual del NNA.';
-COMMENT ON COLUMN nna.luga_nac_nna         IS 'FK a entidad_federativa. Entidad o país de nacimiento del NNA.';
-COMMENT ON COLUMN nna.situacion_calle      IS 'TRUE si el NNA se encuentra o encontraba en situación de calle.';
-COMMENT ON COLUMN nna.es_migrante          IS 'TRUE si el NNA tiene condición migratoria activa o reconocida.';
-COMMENT ON COLUMN nna.es_refugiado         IS 'TRUE si cuenta con reconocimiento de condición de refugiado.';
-COMMENT ON COLUMN nna.poblacion_indigena   IS 'TRUE si pertenece a una comunidad o pueblo indígena.';
-COMMENT ON COLUMN nna.registrado_por       IS 'FK al usuario que realizó el registro inicial del NNA.';
+COMMENT ON TABLE  nna                    IS 'Registro central de NNA conforme al FUD y la LGDNNA.';
+COMMENT ON COLUMN nna.folio_nna          IS 'Folio único de ingreso.';
+COMMENT ON COLUMN nna.id_sexo            IS 'FK a cat_sexo.';
+COMMENT ON COLUMN nna.id_escolaridad     IS 'FK a cat_escolaridad.';
+COMMENT ON COLUMN nna.id_motivo_ingreso  IS 'FK a cat_motivo_ingreso.';
+COMMENT ON COLUMN nna.id_grupo_sanguineo IS 'FK a cat_grupo_sanguineo. Nullable.';
+COMMENT ON COLUMN nna.dir_actual         IS 'FK a direccion. Domicilio actual del NNA.';
+COMMENT ON COLUMN nna.luga_nac_nna       IS 'FK a entidad_federativa. Lugar de nacimiento.';
+COMMENT ON COLUMN nna.situacion_calle    IS 'TRUE si el NNA se encuentra en situación de calle.';
+COMMENT ON COLUMN nna.es_migrante        IS 'TRUE si el NNA tiene condición migratoria.';
+COMMENT ON COLUMN nna.es_refugiado       IS 'TRUE si cuenta con condición de refugiado.';
+COMMENT ON COLUMN nna.poblacion_indigena IS 'TRUE si pertenece a comunidad indígena.';
+COMMENT ON COLUMN nna.registrado_por     IS 'FK al usuario que registró al NNA.';
 
 
 -- ============================================================
 --  FASE 6: RELACIONES Y LISTAS MULTIVALORADAS
---  (6 relaciones — sin cambios en v6.2)
 -- ============================================================
 
--- ----------------------------------------------------------
---  6A. NNA ↔ TUTOR
--- ----------------------------------------------------------
 CREATE TABLE nna_tutor (
     id_nna              INT     NOT NULL REFERENCES nna(id_nna)        ON DELETE CASCADE,
     id_tutor            INT     NOT NULL REFERENCES tutor(id_tutor)    ON DELETE CASCADE,
@@ -645,12 +531,9 @@ CREATE TABLE nna_tutor (
 );
 
 COMMENT ON TABLE  nna_tutor                  IS 'Relación N:M entre NNA y sus tutores/responsables.';
-COMMENT ON COLUMN nna_tutor.id_parentesco    IS 'FK a cat_parentesco. Tipo de vínculo entre el tutor y el NNA.';
-COMMENT ON COLUMN nna_tutor.es_contacto_ppal IS 'TRUE si este tutor es el contacto de referencia principal para el NNA.';
+COMMENT ON COLUMN nna_tutor.id_parentesco    IS 'FK a cat_parentesco.';
+COMMENT ON COLUMN nna_tutor.es_contacto_ppal IS 'TRUE si es el contacto principal.';
 
--- ----------------------------------------------------------
---  6B. NACIONALIDADES del NNA
--- ----------------------------------------------------------
 CREATE TABLE nna_nacionalidad (
     id_nna      INT     NOT NULL REFERENCES nna(id_nna)  ON DELETE CASCADE,
     id_pais     INT     NOT NULL REFERENCES cat_pais(id) ON DELETE RESTRICT,
@@ -658,12 +541,8 @@ CREATE TABLE nna_nacionalidad (
     PRIMARY KEY (id_nna, id_pais)
 );
 
-COMMENT ON TABLE  nna_nacionalidad         IS 'Nacionalidades del NNA; admite doble o múltiple nacionalidad.';
-COMMENT ON COLUMN nna_nacionalidad.id_pais IS 'FK a cat_pais.';
+COMMENT ON TABLE nna_nacionalidad IS 'Nacionalidades del NNA; admite doble o múltiple nacionalidad.';
 
--- ----------------------------------------------------------
---  6C. DISCAPACIDADES del NNA
--- ----------------------------------------------------------
 CREATE TABLE nna_discapacidad (
     id_nna                     INT     NOT NULL REFERENCES nna(id_nna)               ON DELETE CASCADE,
     id_tipo_discapacidad       INT     NOT NULL REFERENCES cat_tipo_discapacidad(id)  ON DELETE RESTRICT,
@@ -674,12 +553,9 @@ CREATE TABLE nna_discapacidad (
     PRIMARY KEY (id_nna, id_tipo_discapacidad)
 );
 
-COMMENT ON TABLE  nna_discapacidad                            IS 'Discapacidades registradas del NNA según clasificación oficial.';
-COMMENT ON COLUMN nna_discapacidad.diagnostico_medico_oficial IS 'TRUE si existe dictamen médico oficial que certifica la discapacidad.';
+COMMENT ON TABLE  nna_discapacidad                            IS 'Discapacidades registradas del NNA.';
+COMMENT ON COLUMN nna_discapacidad.diagnostico_medico_oficial IS 'TRUE si existe dictamen médico oficial.';
 
--- ----------------------------------------------------------
---  6D. LENGUAS del NNA
--- ----------------------------------------------------------
 CREATE TABLE nna_lengua (
     id_nna               INT     NOT NULL REFERENCES nna(id_nna)               ON DELETE CASCADE,
     id_lengua            INT     NOT NULL REFERENCES cat_lengua(id)            ON DELETE RESTRICT,
@@ -690,14 +566,10 @@ CREATE TABLE nna_lengua (
     PRIMARY KEY (id_nna, id_lengua)
 );
 
-COMMENT ON TABLE  nna_lengua                     IS 'Lenguas habladas/señadas por el NNA. PK compuesta: (id_nna, id_lengua).';
-COMMENT ON COLUMN nna_lengua.id_lengua           IS 'FK a cat_lengua.';
-COMMENT ON COLUMN nna_lengua.es_preferente       IS 'TRUE si esta es la lengua de comunicación principal del NNA.';
-COMMENT ON COLUMN nna_lengua.requiere_interprete IS 'TRUE si el NNA necesita intérprete para la atención institucional.';
+COMMENT ON TABLE  nna_lengua                     IS 'Lenguas habladas/señadas por el NNA.';
+COMMENT ON COLUMN nna_lengua.es_preferente       IS 'TRUE si es la lengua principal del NNA.';
+COMMENT ON COLUMN nna_lengua.requiere_interprete IS 'TRUE si necesita intérprete.';
 
--- ----------------------------------------------------------
---  6E. CONTACTOS ADICIONALES del NNA
--- ----------------------------------------------------------
 CREATE TABLE nna_contacto_adicional (
     id_contacto         SERIAL       PRIMARY KEY,
     id_nna              INT          NOT NULL REFERENCES nna(id_nna)           ON DELETE CASCADE,
@@ -708,14 +580,8 @@ CREATE TABLE nna_contacto_adicional (
     CONSTRAINT uq_nna_contacto UNIQUE (id_nna, id_tipo_contacto, valor_contacto)
 );
 
-COMMENT ON TABLE  nna_contacto_adicional                  IS 'Medios de contacto alternativos del NNA.';
-COMMENT ON COLUMN nna_contacto_adicional.id_tipo_contacto IS 'FK a cat_tipo_contacto.';
-COMMENT ON COLUMN nna_contacto_adicional.valor_contacto   IS 'Valor del contacto: número, URL, usuario, etc.';
-COMMENT ON COLUMN nna_contacto_adicional.descripcion      IS 'Nota libre adicional (ej: "Facebook de la abuela materna").';
+COMMENT ON TABLE nna_contacto_adicional IS 'Medios de contacto alternativos del NNA.';
 
--- ----------------------------------------------------------
---  6F. NNA ↔ ENFERMEDAD
--- ----------------------------------------------------------
 CREATE TABLE nna_enfermedad (
     id_nna              INT     NOT NULL REFERENCES nna(id_nna)                   ON DELETE CASCADE,
     id_enfermedad       INT     NOT NULL REFERENCES cat_enfermedad(id_enfermedad)  ON DELETE RESTRICT,
@@ -725,9 +591,8 @@ CREATE TABLE nna_enfermedad (
     PRIMARY KEY (id_nna, id_enfermedad)
 );
 
-COMMENT ON TABLE  nna_enfermedad                  IS 'Relación N:M entre NNA y enfermedades diagnosticadas. Vincula con cat_enfermedad (CIE-10).';
-COMMENT ON COLUMN nna_enfermedad.bajo_tratamiento IS 'TRUE si el NNA está recibiendo tratamiento activo para esta enfermedad.';
-COMMENT ON COLUMN nna_enfermedad.observaciones    IS 'Notas clínicas adicionales específicas del vínculo NNA-enfermedad.';
+COMMENT ON TABLE  nna_enfermedad                  IS 'Relación N:M entre NNA y enfermedades diagnosticadas (CIE-10).';
+COMMENT ON COLUMN nna_enfermedad.bajo_tratamiento IS 'TRUE si está bajo tratamiento activo.';
 
 
 -- ============================================================
@@ -750,21 +615,138 @@ CREATE TABLE expediente_seguimiento (
 );
 
 COMMENT ON TABLE  expediente_seguimiento                      IS 'Registro cronológico de intervenciones multidisciplinarias sobre un NNA.';
-COMMENT ON COLUMN expediente_seguimiento.id_area_atencion     IS 'FK a cat_rol_sistema. Disciplina desde la que se realiza la intervención.';
-COMMENT ON COLUMN expediente_seguimiento.archivo_adjunto_path IS 'Ruta relativa al archivo adjunto. Validar permisos en capa PHP.';
+COMMENT ON COLUMN expediente_seguimiento.id_area_atencion     IS 'FK a cat_rol_sistema.';
+COMMENT ON COLUMN expediente_seguimiento.archivo_adjunto_path IS 'Ruta relativa al archivo adjunto.';
 
 
 -- ============================================================
 --  FASE 8: DATOS OPERATIVOS INICIALES
 -- ============================================================
 
+-- Trabajadores Sociales → INACTIVO
 UPDATE usuario_sistema
 SET    estado = 'INACTIVO'
 WHERE  id_rol = (
     SELECT id FROM cat_rol_sistema WHERE nombre = 'Trabajador_Social'
 );
 
+-- ============================================================
+--  USUARIO ADMINISTRADOR DE PRUEBA
+--  Contraseña: Admin2024* 
+--  IMPORTANTE: Cambiar la contraseña al primer inicio de sesión
+-- ============================================================
+INSERT INTO usuario_sistema (
+    curp,
+    rfc,
+    nombre,
+    apellido_paterno,
+    apellido_materno,
+    correo,
+    contrasena,
+    id_rol,
+    estado
+) VALUES (
+    'XEXX010101HNEXXXA4',
+    'XEXX010101000',
+    'Administrador',
+    'Aurora',
+    'Sistema',
+    'luis@aurora.com',
+    'Admin2024',
+    (SELECT id FROM cat_rol_sistema WHERE nombre = 'Administrador'),
+    'ACTIVO'
+);
 
+INSERT INTO cat_enfermedad (codigo_cie, nombre) VALUES
+('J00','Resfriado comun'),
+('J01','Sinusitis aguda'),
+('J02','Faringitis aguda'),
+('J03','Amigdalitis'),
+('J04','Laringitis'),
+('J05','Crup'),
+('J06','Infeccion respiratoria superior'),
+('J10','Influenza'),
+('J11','Influenza no especificada'),
+('J12','Neumonia viral'),
+('J13','Neumonia por neumococo'),
+('J14','Neumonia por Haemophilus'),
+('J15','Neumonia bacteriana'),
+('J18','Neumonia no especificada'),
+('H65','Otitis media serosa'),
+('H66','Otitis media aguda'),
+('H67','Otitis en enfermedades clasificadas'),
+('A08','Gastroenteritis viral'),
+('A09','Gastroenteritis infecciosa'),
+('A37','Tos ferina'),
+('A38','Escarlatina'),
+('A39','Meningitis meningococica'),
+('B01','Varicela'),
+('B05','Sarampion'),
+('B06','Rubeola'),
+('B15','Hepatitis A'),
+('B16','Hepatitis B'),
+('N39','Infeccion urinaria'),
+('K35','Apendicitis'),
+('K52','Colitis no infecciosa'),
+('L20','Dermatitis atopica'),
+('L21','Dermatitis seborreica'),
+('L22','Dermatitis del pañal'),
+('E10','Diabetes tipo 1'),
+('E11','Diabetes tipo 2'),
+('D50','Anemia por deficiencia de hierro'),
+('G40','Epilepsia'),
+('F32','Depresion'),
+('F90','TDAH'),
+('R50','Fiebre'),
+('R51','Dolor de cabeza'),
+('R56','Convulsiones'),
+('T78','Reacciones alergicas'),
+('T79','Complicaciones tempranas de trauma')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO cat_municipio (nom_mun, id_ent) VALUES
+('Azcapotzalco', 7),
+('Coyoacán', 7),
+('Cuajimalpa de Morelos', 7),
+('Iztacalco', 7),
+('La Magdalena Contreras', 7),
+('Milpa Alta', 7),
+('Tláhuac', 7),
+('Venustiano Carranza', 7)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO cat_municipio (nom_mun, id_ent) VALUES
+('Acambay de Ruíz Castañeda', 15),('Acolman', 15),('Aculco', 15),('Almoloya de Alquisiras', 15),
+('Almoloya de Juárez', 15),('Almoloya del Río', 15),('Amanalco', 15),('Amatepec', 15),
+('Amecameca', 15),('Apaxco', 15),('Atenco', 15),('Atizapán', 15),
+('Atizapán de Zaragoza', 15),('Atlacomulco', 15),('Atlautla', 15),('Axapusco', 15),
+('Ayapango', 15),('Calimaya', 15),('Capulhuac', 15),('Coacalco de Berriozábal', 15),
+('Coatepec Harinas', 15),('Cocotitlán', 15),('Coyotepec', 15),('Cuautitlán', 15),
+('Chalco', 15),('Chapa de Mota', 15),('Chapultepec', 15),('Chiautla', 15),
+('Chicoloapan', 15),('Chiconcuac', 15),('Chimalhuacán', 15),('Donato Guerra', 15),
+('Ecatzingo', 15),('Huehuetoca', 15),('Hueypoxtla', 15),('Huixquilucan', 15),
+('Isidro Fabela', 15),('Ixtapaluca', 15),('Ixtapan de la Sal', 15),('Ixtapan del Oro', 15),
+('Ixtlahuaca', 15),('Xalatlaco', 15),('Jaltenco', 15),('Jilotepec', 15),
+('Jilotzingo', 15),('Jiquipilco', 15),('Jocotitlán', 15),('Joquicingo', 15),
+('Juchitepec', 15),('Lerma', 15),('Malinalco', 15),('Melchor Ocampo', 15),
+('Metepec', 15),('Mexicaltzingo', 15),('Morelos', 15),('Nextlalpan', 15),
+('Nicolás Romero', 15),('Nopaltepec', 15),('Ocoyoacac', 15),('Ocuilan', 15),
+('El Oro', 15),('Otumba', 15),('Otzoloapan', 15),('Otzolotepec', 15),
+('Ozumba', 15),('Papalotla', 15),('La Paz', 15),('Polotitlán', 15),
+('Rayón', 15),('San Antonio la Isla', 15),('San Felipe del Progreso', 15),('San Martín de las Pirámides', 15),
+('San Mateo Atenco', 15),('San Simón de Guerrero', 15),('Santo Tomás', 15),('Soyaniquilpan de Juárez', 15),
+('Sultepec', 15),('Tecámac', 15),('Tejupilco', 15),('Temamatla', 15),
+('Temascalapa', 15),('Temascalcingo', 15),('Temascaltepec', 15),('Temoaya', 15),
+('Tenancingo', 15),('Tenango del Aire', 15),('Tenango del Valle', 15),('Teoloyucan', 15),
+('Teotihuacán', 15),('Tepetlaoxtoc', 15),('Tepetlixpa', 15),('Tepotzotlán', 15),
+('Tequixquiac', 15),('Texcaltitlán', 15),('Texcalyacac', 15),('Texcoco', 15),
+('Tezoyuca', 15),('Tianguistenco', 15),('Timilpan', 15),('Tlalmanalco', 15),
+('Tlatlaya', 15),('Tonatico', 15),('Tultepec', 15),('Tultitlán', 15),
+('Valle de Bravo', 15),('Villa de Allende', 15),('Villa del Carbón', 15),('Villa Guerrero', 15),
+('Villa Victoria', 15),('Xonacatlán', 15),('Zacazonapan', 15),('Zacualpan', 15),
+('Zinacantepec', 15),('Zumpahuacán', 15),('Zumpango', 15),('Cuautitlán Izcalli', 15),
+('Valle de Chalco Solidaridad', 15),('Luvianos', 15),('San José del Rincón', 15),('Tonanitla', 15)
+ON CONFLICT DO NOTHING;
 -- ============================================================
 --  FASE 9: ÍNDICES DE RENDIMIENTO
 -- ============================================================
@@ -774,7 +756,7 @@ CREATE INDEX idx_usuario_rol        ON usuario_sistema(id_rol);
 CREATE INDEX idx_usuario_estado     ON usuario_sistema(estado);
 CREATE INDEX idx_usuario_mun_lab    ON usuario_sistema(id_municipio_labora);
 
--- nna (v6.2: +idx_nna_sangre)
+-- nna
 CREATE INDEX idx_nna_sexo           ON nna(id_sexo);
 CREATE INDEX idx_nna_escolaridad    ON nna(id_escolaridad);
 CREATE INDEX idx_nna_motivo         ON nna(id_motivo_ingreso);
@@ -799,14 +781,12 @@ CREATE INDEX idx_exp_usuario        ON expediente_seguimiento(id_usuario);
 CREATE INDEX idx_exp_fecha          ON expediente_seguimiento(fecha_atencion DESC);
 CREATE INDEX idx_exp_area           ON expediente_seguimiento(id_area_atencion);
 
--- geografía
-CREATE INDEX idx_dir_municipio      ON direccion(id_municipio);
-CREATE INDEX idx_dir_cp             ON direccion(codigo_postal);
-CREATE INDEX idx_municipio_ent      ON cat_municipio(id_ent);
+-- NOTA: idx_dir_municipio, idx_dir_cp e idx_municipio_ent
+-- se crean en Fase 3 junto con sus tablas (no se duplican aquí)
 
 
 -- ============================================================
---  RESUMEN DE RELACIONES FNBC — 25 TABLAS (v6.2)
+--  RESUMEN DE RELACIONES FNBC — 25 TABLAS (v6.4)
 -- ============================================================
 --
 --  CATÁLOGOS (13)
@@ -822,16 +802,16 @@ CREATE INDEX idx_municipio_ent      ON cat_municipio(id_ent);
 --    cat_motivo_ingreso       ( id, nombre )
 --    cat_enfermedad           ( id_enfermedad, codigo_cie, nombre )
 --    cat_tipo_contacto        ( id, nombre )
---    cat_grupo_sanguineo *v6.2*( id, nombre )
+--    cat_grupo_sanguineo      ( id, nombre )  ← VARCHAR(20) FIX v6.4
 --
---  GEOGRAFÍA HÍBRIDA (3)  — INTACTO DESDE v5
+--  GEOGRAFÍA HÍBRIDA (3)
 --    entidad_federativa       ( id_ent, nom_ent )
 --    cat_municipio            ( id_municipio, nom_mun, id_ent )
 --    direccion                ( id_dir, calle_dir, no_ext_dir, no_int_dir,
 --                               ref_dir, colonia_abierta, codigo_postal,
 --                               id_municipio )
 --
---  PLATAFORMA (1)  — INTACTO DESDE v5
+--  PLATAFORMA (1)
 --    usuario_sistema          ( id_usuario, curp, rfc, nombre, apellido_paterno,
 --                               apellido_materno, correo, contrasena,
 --                               id_rol, id_municipio_labora,
@@ -840,11 +820,10 @@ CREATE INDEX idx_municipio_ent      ON cat_municipio(id_ent);
 --  ENTIDADES CENTRALES (2)
 --    tutor                    ( id_tutor, curp_tutor, nombre, primer_apellido,
 --                               segundo_apellido, telefono, correo, es_adulto_mayor )
---    nna                *v6.2*( id_nna, folio_nna, nombre, prim_ap, seg_ap,
+--    nna                      ( id_nna, folio_nna, nombre, prim_ap, seg_ap,
 --                               fecha_nacimiento, curp, id_sexo,
 --                               id_escolaridad, id_motivo_ingreso,
---                               id_grupo_sanguineo,
---                               dir_actual, luga_nac_nna,
+--                               id_grupo_sanguineo, dir_actual, luga_nac_nna,
 --                               situacion_calle, es_migrante, es_refugiado,
 --                               poblacion_indigena, fecha_registro, registrado_por )
 --
@@ -867,5 +846,5 @@ CREATE INDEX idx_municipio_ent      ON cat_municipio(id_ent);
 --                               notas_evolucion, archivo_adjunto_path )
 --
 -- ============================================================
---  FIN DEL SCRIPT — PROYECTO AURORA v6.2 · FNBC · GEO HÍBRIDO · FUD/LGDNNA
+--  FIN DEL SCRIPT — PROYECTO AURORA v6.4 · FNBC · GEO HÍBRIDO · FUD/LGDNNA
 -- ============================================================

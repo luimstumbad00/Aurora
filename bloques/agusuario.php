@@ -7,9 +7,11 @@ if (!isset($_SESSION['usuario'])) {
     exit();
 }
 
-// 2. Validar que solo el Director o Coordinador puedan registrar
+// 2. Solo el Administrador puede registrar usuarios
+//    (En el esquema normalizado los roles válidos son los de cat_rol_sistema;
+//     "Director"/"Coordinador" ya no existen)
 $rolActual = $_SESSION['usuario']['rol'];
-if ($rolActual !== 'Director' && $rolActual !== 'Coordinador' && $rolActual !== 'Administrador') {
+if ($rolActual !== 'Administrador') {
     header("Location: dashboard.php?error=acceso_denegado");
     exit();
 }
@@ -28,74 +30,96 @@ if (isset($_GET['status']) && $_GET['status'] == 'success') {
     $tipoMensaje = "success";
 }
 
+// Catálogos para poblar los <select>
+$roles = [];
+$municipios = [];
+try {
+    $roles = $pdo->query("SELECT id, nombre FROM cat_rol_sistema ORDER BY nombre")
+                 ->fetchAll(PDO::FETCH_ASSOC);
+
+    $municipios = $pdo->query("
+        SELECT m.id_municipio, m.nom_mun, e.nom_ent
+        FROM cat_municipio m
+        INNER JOIN entidad_federativa e ON e.id_ent = m.id_ent
+        ORDER BY e.nom_ent, m.nom_mun
+    ")->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // En producción: error_log($e->getMessage());
+    $mensaje = "No se pudieron cargar los catálogos ❌";
+    $tipoMensaje = "error";
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
-    // Convertimos a MAYÚSCULAS todos los campos de texto
-    $curp = strtoupper(trim($_POST['curp']));
-    $rfc = strtoupper(trim($_POST['rfc']));
-    $apellido_p = strtoupper(trim($_POST['apellido_p']));
-    $apellido_m = strtoupper(trim($_POST['apellido_m']));
-    $nombres = strtoupper(trim($_POST['nombres']));
+    // Campos de texto en MAYÚSCULAS
+    $curp       = strtoupper(trim($_POST['curp'] ?? ''));
+    $rfc        = strtoupper(trim($_POST['rfc'] ?? ''));
+    $apellido_p = strtoupper(trim($_POST['apellido_p'] ?? ''));
+    $apellido_m = strtoupper(trim($_POST['apellido_m'] ?? ''));
+    $nombres    = strtoupper(trim($_POST['nombres'] ?? ''));
 
-    $calle = strtoupper(trim($_POST['calle']));
-    $num_ext = strtoupper(trim($_POST['num_ext']));
-    $num_int = !empty($_POST['num_int']) ? strtoupper(trim($_POST['num_int'])) : null;
-    $cp = trim($_POST['cp']); 
-    $municipio = strtoupper(trim($_POST['municipio']));
-    
-    // Estos los dejamos con su formato original porque la BD tiene validaciones estrictas (CHECK/ENUM)
-    $estado_dir = $_POST['estado_dir'];
-    $sexo = $_POST['sexo'];
-    $tipo_personal = $_POST['tipo_personal'];
-    $rol = !empty($_POST['rol']) ? $_POST['rol'] : null;
-    $nacimiento = $_POST['nacimiento'];
-    
-    // El correo es una buena práctica guardarlo siempre en minúsculas
-    $correo = strtolower(trim($_POST['correo']));
+    // FKs a catálogos
+    $id_rol            = !empty($_POST['id_rol']) ? (int) $_POST['id_rol'] : null;
+    $id_municipio_lab  = !empty($_POST['id_municipio_labora']) ? (int) $_POST['id_municipio_labora'] : null;
 
-    $contrasena = $curp; // La contraseña temporal será su CURP (ya en mayúsculas)
+    // Correo siempre en minúsculas
+    $correo = strtolower(trim($_POST['correo'] ?? ''));
 
-    // Agregamos ::nombre_mex, ::direccion_mex y ::rol_enum como en la pantalla de modificación
-    $query = "
-        INSERT INTO usuario (
-            curp, rfc, nombre, direccion,
-            sexo, nacimiento, tipo_personal,
-            rol, estado, correo, contrasena
-        ) VALUES (
-            $1, $2,
-            ROW($3,$4,$5)::nombre_mex,
-            ROW($6,$7,$8,$9,$10,$11)::direccion_mex,
-            $12, $13, $14,
-            $15::rol_enum, 'Activo', $16, $17
-        )
-    ";
+    // Contraseña temporal = CURP (texto plano, según definición del proyecto)
+    $contrasena = $curp;
 
-    $result = @pg_query_params($conn, $query, array(
-        $curp, $rfc,
-        $apellido_p, $apellido_m, $nombres,
-        $calle, $num_ext, $num_int, $cp, $municipio, $estado_dir,
-        $sexo, $nacimiento, $tipo_personal,
-        $rol, $correo, $contrasena
-    ));
-
-    if ($result) {
-        // Redirigimos para limpiar el POST y que no se duplique al recargar la página (F5)
-        header("Location: " . $_SERVER['PHP_SELF'] . "?status=success");
-        exit();
-    } else {
-        // Manejo detallado de errores
-        $error = pg_last_error($conn);
-
-        if (strpos($error, 'usuario_pkey') !== false) {
-            $mensaje = "La CURP ya está registrada ⚠️";
-        } elseif (strpos($error, 'usuario_rfc_key') !== false) {
-            $mensaje = "El RFC ya está registrado ⚠️";
-        } elseif (strpos($error, 'usuario_correo_key') !== false) {
-            $mensaje = "El correo electrónico ya está registrado ⚠️";
-        } else {
-            $mensaje = "Error al crear usuario ❌";
-        }
+    if (!$id_rol) {
+        $mensaje = "Debes seleccionar un rol ⚠️";
         $tipoMensaje = "error";
+    } else {
+        try {
+            // INSERT plano sobre usuario_sistema (una sola tabla → sin transacción)
+            $query = "
+                INSERT INTO usuario_sistema (
+                    curp, rfc, nombre, apellido_paterno, apellido_materno,
+                    correo, contrasena, id_rol, id_municipio_labora, estado
+                ) VALUES (
+                    :curp, :rfc, :nombre, :apellido_p, :apellido_m,
+                    :correo, :contrasena, :id_rol, :id_municipio, 'ACTIVO'
+                )
+            ";
+
+            $stmt = $pdo->prepare($query);
+            $stmt->execute([
+                ':curp'         => $curp,
+                ':rfc'          => $rfc !== '' ? $rfc : null,
+                ':nombre'       => $nombres,
+                ':apellido_p'   => $apellido_p,
+                ':apellido_m'   => $apellido_m !== '' ? $apellido_m : null,
+                ':correo'       => $correo,
+                ':contrasena'   => $contrasena,
+                ':id_rol'       => $id_rol,
+                ':id_municipio' => $id_municipio_lab
+            ]);
+
+            // PRG: limpiamos el POST para que F5 no duplique
+            header("Location: " . $_SERVER['PHP_SELF'] . "?status=success");
+            exit();
+
+        } catch (PDOException $e) {
+            $err = $e->getMessage();
+
+            // 23505 = unique_violation. Detectamos qué restricción se violó.
+            if (strpos($err, 'usuario_sistema_curp_key') !== false) {
+                $mensaje = "La CURP ya está registrada ⚠️";
+            } elseif (strpos($err, 'usuario_sistema_rfc_key') !== false) {
+                $mensaje = "El RFC ya está registrado ⚠️";
+            } elseif (strpos($err, 'usuario_sistema_correo_key') !== false) {
+                $mensaje = "El correo electrónico ya está registrado ⚠️";
+            } elseif (strpos($err, 'chk_curp_usuario') !== false) {
+                $mensaje = "La CURP debe tener exactamente 18 caracteres ⚠️";
+            } elseif (strpos($err, 'chk_correo_usuario') !== false) {
+                $mensaje = "El formato del correo no es válido ⚠️";
+            } else {
+                $mensaje = "Error al crear usuario ❌";
+            }
+            $tipoMensaje = "error";
+        }
     }
 }
 ?>
@@ -168,62 +192,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <label for="nombres">Nombres:</label>
         <input type="text" id="nombres" name="nombres" value="<?= htmlspecialchars($_POST['nombres'] ?? '') ?>" required>
 
-        <label for="sexo">Sexo:</label>
-        <select id="sexo" name="sexo" required>
-            <option value="" disabled selected hidden>SELECCIONE SEXO</option>
-            <option value="Masculino" <?= (($_POST['sexo'] ?? '') == 'Masculino') ? 'selected' : '' ?>>MASCULINO</option>
-            <option value="Femenino" <?= (($_POST['sexo'] ?? '') == 'Femenino') ? 'selected' : '' ?>>FEMENINO</option>
-            <option value="Otro" <?= (($_POST['sexo'] ?? '') == 'Otro') ? 'selected' : '' ?>>OTRO</option>
+        <label for="id_municipio_labora">Municipio donde labora (Opcional):</label>
+        <select id="id_municipio_labora" name="id_municipio_labora">
+            <option value="" selected>SIN ASIGNAR</option>
+            <?php foreach ($municipios as $m): ?>
+                <option value="<?= (int) $m['id_municipio'] ?>"
+                    <?= (($_POST['id_municipio_labora'] ?? '') == $m['id_municipio']) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars(mb_strtoupper($m['nom_mun'] . ' — ' . $m['nom_ent'], 'UTF-8')) ?>
+                </option>
+            <?php endforeach; ?>
         </select>
 
-        <label for="nacimiento">Fecha de Nacimiento:</label>
-        <input type="date" id="nacimiento" name="nacimiento" max="<?php echo date('Y-m-d'); ?>" value="<?= htmlspecialchars($_POST['nacimiento'] ?? '') ?>" required>
-
-        <label for="calle">Calle:</label>
-        <input type="text" id="calle" name="calle" value="<?= htmlspecialchars($_POST['calle'] ?? '') ?>" required>
-        
-        <label for="num_ext">Número Exterior:</label>
-        <input type="text" id="num_ext" name="num_ext" value="<?= htmlspecialchars($_POST['num_ext'] ?? '') ?>" required>
-        
-        <label for="num_int">Número Interior (Opcional):</label>
-        <input type="text" id="num_int" name="num_int" value="<?= htmlspecialchars($_POST['num_int'] ?? '') ?>">
-        
-        <label for="cp">Código Postal:</label>
-        <input type="text" id="cp" name="cp" value="<?= htmlspecialchars($_POST['cp'] ?? '') ?>" required>
-        
-        <label for="municipio">Municipio:</label>
-        <input type="text" id="municipio" name="municipio" value="<?= htmlspecialchars($_POST['municipio'] ?? '') ?>" required>
-
-        <label for="estado_dir">Estado:</label>
-        <select id="estado_dir" name="estado_dir" required>
-            <option value="" disabled selected hidden>SELECCIONE ESTADO</option>
-            <?php 
-            $estados = ["Aguascalientes", "Baja California", "Baja California Sur", "Campeche", "Chiapas", "Chihuahua", "Ciudad de México", "Coahuila", "Colima", "Durango", "Estado de México", "Guanajuato", "Guerrero", "Hidalgo", "Jalisco", "Michoacán", "Morelos", "Nayarit", "Nuevo León", "Oaxaca", "Puebla", "Querétaro", "Quintana Roo", "San Luis Potosí", "Sinaloa", "Sonora", "Tabasco", "Tamaulipas", "Tlaxcala", "Veracruz", "Yucatán", "Zacatecas"];
-            foreach ($estados as $est) {
-                $selected = (($_POST['estado_dir'] ?? '') == $est) ? 'selected' : '';
-                // Se muestra en mayúsculas en pantalla, pero se envía el valor original ($est)
-                echo "<option value=\"$est\" $selected>" . mb_strtoupper($est, 'UTF-8') . "</option>";
-            }
-            ?>
-        </select>
-
-        <label for="tipo_personal">Tipo de Personal:</label>
-        <select id="tipo_personal" name="tipo_personal" required>
-            <option value="" disabled selected hidden>SELECCIONE TIPO DE PERSONAL</option>
-            <option value="Empleado" <?= (($_POST['tipo_personal'] ?? '') == 'Empleado') ? 'selected' : '' ?>>EMPLEADO</option>
-            <option value="Voluntario" <?= (($_POST['tipo_personal'] ?? '') == 'Voluntario') ? 'selected' : '' ?>>VOLUNTARIO</option>
-        </select>
-
-        <label for="rol">Rol (Opcional):</label>
-        <select id="rol" name="rol">
-            <option value="" hidden>SELECCIONE UN ROL</option>
-            <?php 
-            $roles = ["Director", "Coordinador", "Psicologo", "Doctor", "Abogado", "Trabajador Social", "Analista"];
-            foreach ($roles as $r) {
-                $selected = (($_POST['rol'] ?? '') == $r) ? 'selected' : '';
-                echo "<option value=\"$r\" $selected>" . mb_strtoupper($r, 'UTF-8') . "</option>";
-            }
-            ?>
+        <label for="id_rol">Rol:</label>
+        <select id="id_rol" name="id_rol" required>
+            <option value="" disabled <?= empty($_POST['id_rol']) ? 'selected' : '' ?> hidden>SELECCIONE UN ROL</option>
+            <?php foreach ($roles as $r): ?>
+                <option value="<?= (int) $r['id'] ?>"
+                    <?= (($_POST['id_rol'] ?? '') == $r['id']) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars(mb_strtoupper($r['nombre'], 'UTF-8')) ?>
+                </option>
+            <?php endforeach; ?>
         </select>
 
         <label for="correo">Correo Electrónico:</label>

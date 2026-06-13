@@ -9,35 +9,48 @@ if (!isset($_SESSION['usuario'])) {
 
 require '../config/database.php';
 
-// Manejo de búsqueda por nombre de tutor o CURP
-$busqueda = isset($_GET['buscar']) ? pg_escape_string($conn, strtoupper($_GET['buscar'])) : '';
+// Búsqueda por nombre de tutor o CURP
+$busqueda = isset($_GET['buscar']) ? strtoupper(trim($_GET['buscar'])) : '';
 
-// 2. CORRECCIÓN: Consulta con JOIN a la superentidad 'persona' para obtener los nombres
-$query = "SELECT 
-            t.curp AS tutor_curp, 
-            pt.nombre AS tutor_nom, 
-            pt.apellido_paterno AS tutor_ap, 
-            pt.apellido_materno AS tutor_am,
-            t.telefono, 
-            t.correo, 
-            t.es_adulto_mayor,
-            pn.nombre AS nna_nom, 
-            pn.apellido_paterno AS nna_ap,
-            nt.relacion
-          FROM tutor t
-          JOIN persona pt ON t.curp = pt.curp 
-          LEFT JOIN nna_tutor nt ON t.curp = nt.curp_tutor
-          LEFT JOIN nna n ON nt.curp_nna = n.curp
-          LEFT JOIN persona pn ON n.curp = pn.curp";
+// Modelo normalizado:
+//   tutor ya guarda su nombre (sin tabla persona)
+//   nna_tutor usa id_tutor/id_nna; el parentesco es id_parentesco -> cat_parentesco
+$query = "
+    SELECT 
+        t.curp_tutor        AS tutor_curp, 
+        t.nombre            AS tutor_nom, 
+        t.primer_apellido   AS tutor_ap, 
+        t.segundo_apellido  AS tutor_am,
+        t.telefono, 
+        t.correo, 
+        t.es_adulto_mayor,
+        n.nombre            AS nna_nom, 
+        n.prim_ap           AS nna_ap,
+        p.nombre            AS relacion
+    FROM tutor t
+    LEFT JOIN nna_tutor nt       ON nt.id_tutor = t.id_tutor
+    LEFT JOIN nna n              ON n.id_nna = nt.id_nna
+    LEFT JOIN cat_parentesco p   ON p.id = nt.id_parentesco
+";
 
+$params = [];
 if (!empty($busqueda)) {
-    // Ajuste de búsqueda para apuntar a la tabla persona (pt)
-    $query .= " WHERE t.curp LIKE '%$busqueda%' OR pt.nombre LIKE '%$busqueda%' OR pt.apellido_paterno LIKE '%$busqueda%'";
+    $query .= " WHERE t.curp_tutor ILIKE :b
+                   OR t.nombre ILIKE :b
+                   OR t.primer_apellido ILIKE :b ";
+    $params[':b'] = '%' . $busqueda . '%';
 }
 
-// Ajuste del ORDER BY para apuntar a la tabla persona (pt)
-$query .= " ORDER BY pt.apellido_paterno ASC";
-$result = pg_query($conn, $query);
+$query .= " ORDER BY t.primer_apellido ASC";
+
+try {
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // En producción: error_log($e->getMessage());
+    $filas = [];
+}
 ?>
 
 <!DOCTYPE html>
@@ -118,12 +131,12 @@ $result = pg_query($conn, $query);
             </tr>
         </thead>
         <tbody>
-            <?php if (pg_num_rows($result) > 0): ?>
-                <?php while ($row = pg_fetch_assoc($result)): ?>
+            <?php if (count($filas) > 0): ?>
+                <?php foreach ($filas as $row): ?>
                     <tr>
-                        <td><strong><?= htmlspecialchars($row['tutor_curp']) ?></strong></td>
+                        <td><strong><?= htmlspecialchars($row['tutor_curp'] ?? 'Sin CURP') ?></strong></td>
                         <td>
-                            <?= htmlspecialchars($row['tutor_nom'] . " " . $row['tutor_ap'] . " " . $row['tutor_am']) ?>
+                            <?= htmlspecialchars(trim($row['tutor_nom'] . " " . $row['tutor_ap'] . " " . ($row['tutor_am'] ?? ''))) ?>
                             <?= ($row['es_adulto_mayor'] == 't') ? '<br><span class="adulto-mayor">👴 ADULTO MAYOR</span>' : '' ?>
                         </td>
                         <td>
@@ -140,14 +153,13 @@ $result = pg_query($conn, $query);
                                 <span style="color: gray; font-style: italic;">Sin NNA vinculado</span>
                             <?php endif; ?>
                         </td>
-                        <!-- CORRECCIÓN: Etiquetas td y a cerradas correctamente -->
                         <td>
-                            <a href="editar_tutor.php?curp=<?= urlencode($row['tutor_curp']) ?>" style="background-color: #f39c12; color: white; padding: 5px 10px; text-decoration: none; border-radius: 3px; font-size: 11px;">✏️ Editar</a>
+                            <a href="editar_tutor.php?curp=<?= urlencode($row['tutor_curp'] ?? '') ?>" style="background-color: #f39c12; color: white; padding: 5px 10px; text-decoration: none; border-radius: 3px; font-size: 11px;">✏️ Editar</a>
                             
-                            <a href="registrar_enfermedad.php?curp_tutor=<?= urlencode($row['tutor_curp']) ?>" style="background-color: #9b59b6; color: white; padding: 5px 10px; text-decoration: none; border-radius: 3px; font-size: 11px; display: block; text-align: center; margin-top:5px;">🏥 Salud Tutor</a>
+                            <a href="registrar_enfermedad.php?curp_tutor=<?= urlencode($row['tutor_curp'] ?? '') ?>" style="background-color: #9b59b6; color: white; padding: 5px 10px; text-decoration: none; border-radius: 3px; font-size: 11px; display: block; text-align: center; margin-top:5px;">🏥 Salud Tutor</a>
                         </td>
                     </tr>
-                <?php endwhile; ?>
+                <?php endforeach; ?>
             <?php else: ?>
                 <tr>
                     <td colspan="5" style="text-align:center;">No se encontraron tutores registrados.</td>

@@ -14,37 +14,65 @@ if ($rolActual !== 'Administrador') {
 
 require '../config/database.php';
 
-$busqueda = isset($_GET['buscar']) ? pg_escape_string($conn, strtoupper($_GET['buscar'])) : '';
+// Texto de búsqueda (lo mantenemos en mayúsculas como el diseño original;
+// usamos ILIKE para que el match sea insensible a may/min de todos modos)
+$busqueda = isset($_GET['buscar']) ? strtoupper(trim($_GET['buscar'])) : '';
 
-// CORRECCIÓN: Jalamos la dirección REAL desde la tabla persona (pn)
-$query = "SELECT 
-            n.curp, 
-            pn.nombre, 
-            pn.apellido_paterno, 
-            pn.fecha_nacimiento,
-            n.situacion_calle, 
-            n.es_migrante, 
-            n.es_refugiado, 
-            n.poblacion_indigena,
-            pn.calle, 
-            pn.numero_exterior AS num_ext,
-            pn.municipio,
-            pn.estado_dir,
-            pt.nombre as tutor_nombre, 
-            pt.apellido_paterno as tutor_ap, 
-            t.telefono as tutor_tel
-          FROM nna n
-          JOIN persona pn ON n.curp = pn.curp
-          LEFT JOIN nna_tutor nt ON n.curp = nt.curp_nna
-          LEFT JOIN tutor t ON nt.curp_tutor = t.curp
-          LEFT JOIN persona pt ON t.curp = pt.curp";
+// Esquema normalizado:
+//   nna trae el nombre directamente (sin tabla persona)
+//   dirección: nna.dir_actual -> direccion -> cat_municipio -> entidad_federativa
+//   tutor:     nna_tutor(id_nna,id_tutor) -> tutor   (un tutor por NNA, el principal)
+$query = "
+    SELECT 
+        n.curp, 
+        n.nombre, 
+        n.prim_ap            AS apellido_paterno, 
+        n.fecha_nacimiento,
+        n.situacion_calle, 
+        n.es_migrante, 
+        n.es_refugiado, 
+        n.poblacion_indigena,
+        d.calle_dir          AS calle, 
+        d.no_ext_dir         AS num_ext,
+        cm.nom_mun           AS municipio,
+        ef.nom_ent           AS estado_dir,
+        tut.tutor_nombre,
+        tut.tutor_ap,
+        tut.tutor_tel
+    FROM nna n
+    LEFT JOIN direccion d            ON d.id_dir = n.dir_actual
+    LEFT JOIN cat_municipio cm       ON cm.id_municipio = d.id_municipio
+    LEFT JOIN entidad_federativa ef  ON ef.id_ent = cm.id_ent
+    LEFT JOIN LATERAL (
+        SELECT t.nombre          AS tutor_nombre,
+               t.primer_apellido AS tutor_ap,
+               t.telefono        AS tutor_tel
+        FROM nna_tutor nt
+        JOIN tutor t ON t.id_tutor = nt.id_tutor
+        WHERE nt.id_nna = n.id_nna
+        ORDER BY nt.es_contacto_ppal DESC
+        LIMIT 1
+    ) tut ON true
+";
 
+$params = [];
 if (!empty($busqueda)) {
-    $query .= " WHERE n.curp LIKE '%$busqueda%' OR pn.nombre LIKE '%$busqueda%' OR pn.apellido_paterno LIKE '%$busqueda%'";
+    $query .= " WHERE n.curp ILIKE :b
+                   OR n.nombre ILIKE :b
+                   OR n.prim_ap ILIKE :b ";
+    $params[':b'] = '%' . $busqueda . '%';
 }
 
-$query .= " ORDER BY n.curp DESC"; 
-$result = pg_query($conn, $query);
+$query .= " ORDER BY n.curp DESC";
+
+try {
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // En producción: error_log($e->getMessage());
+    $filas = [];
+}
 ?>
 
 <!DOCTYPE html>
@@ -116,10 +144,10 @@ $result = pg_query($conn, $query);
             </tr>
         </thead>
         <tbody>
-            <?php if (pg_num_rows($result) > 0): ?>
-                <?php while ($row = pg_fetch_assoc($result)): ?>
+            <?php if (count($filas) > 0): ?>
+                <?php foreach ($filas as $row): ?>
                     <tr>
-                        <td><strong><?= htmlspecialchars($row['curp']) ?></strong></td>
+                        <td><strong><?= htmlspecialchars($row['curp'] ?? 'Sin CURP') ?></strong></td>
                         <td>
                             <?= htmlspecialchars($row['nombre'] . " " . $row['apellido_paterno']) ?><br>
                             <small style="color: #7f8c8d;">Nacimiento: <?= htmlspecialchars($row['fecha_nacimiento']) ?></small>
@@ -157,7 +185,7 @@ $result = pg_query($conn, $query);
                             <a href="editar_nna.php?curp=<?= urlencode($row['curp']) ?>" class="btn-accion btn-editar">✏️ Editar Datos</a>
                         </td>
                     </tr>
-                <?php endwhile; ?>
+                <?php endforeach; ?>
             <?php else: ?>
                 <tr><td colspan="6" style="text-align: center;">No hay NNA's registrados en el sistema.</td></tr>
             <?php endif; ?>
