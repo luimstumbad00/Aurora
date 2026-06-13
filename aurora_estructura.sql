@@ -107,6 +107,11 @@ COMMENT ON TABLE cat_grado_dependencia IS 'Catálogo de grados de dependencia fu
 
 -- ----------------------------------------------------------
 --  2E. cat_nivel_competencia
+--  Fuente: FUD/LGDNNA + Marco Común Europeo de Referencia (MCER)
+--  Decisión: se incluyen AMBAS escalas para máxima compatibilidad.
+--  La escala funcional (Básico/Intermedio/Avanzado/Nativo) se usa
+--  para lenguas indígenas y LSM donde el MCER no aplica.
+--  La escala MCER (A1-C2) se usa para lenguas extranjeras.
 -- ----------------------------------------------------------
 CREATE TABLE cat_nivel_competencia (
     id      SERIAL          PRIMARY KEY,
@@ -114,12 +119,28 @@ CREATE TABLE cat_nivel_competencia (
 );
 
 INSERT INTO cat_nivel_competencia (nombre) VALUES
+    -- Escala funcional FUD/LGDNNA
+    -- (aplica para lenguas indígenas, LSM y registro general)
     ('Básico'),
     ('Intermedio'),
     ('Avanzado'),
-    ('Nativo');
+    ('Nativo / Lengua Materna'),
+    -- Escala MCER — Marco Común Europeo de Referencia
+    -- (aplica para lenguas extranjeras: inglés, francés, etc.)
+    ('A1 - Acceso'),
+    ('A2 - Plataforma'),
+    ('B1 - Umbral'),
+    ('B2 - Avanzado'),
+    ('C1 - Dominio Operativo Eficaz'),
+    ('C2 - Maestría'),
+    -- Valor especial
+    ('No evaluado');
 
-COMMENT ON TABLE cat_nivel_competencia IS 'Catálogo de niveles de competencia lingüística oral/señada.';
+COMMENT ON TABLE cat_nivel_competencia IS
+    'Catálogo de niveles de competencia lingüística oral/señada. '
+    'Incluye escala funcional FUD/LGDNNA (Básico→Nativo) para lenguas indígenas y LSM, '
+    'y escala MCER A1-C2 para lenguas extranjeras. '
+    'Fuente: SEP Sistema Educativo Nacional + Consejo de Europa MCER 2001.';
 
 -- ----------------------------------------------------------
 --  2F. cat_parentesco
@@ -207,6 +228,10 @@ COMMENT ON TABLE cat_pais IS 'Catálogo de países de nacionalidad/origen del NN
 
 -- ----------------------------------------------------------
 --  2I. cat_escolaridad
+--  Fuente: SEP — Sistema Educativo Nacional (SEN)
+--  Homologado con los niveles oficiales de la SEP incluyendo
+--  modalidades especiales y categorías de rezago educativo
+--  conforme al INEA y el FUD/LGDNNA.
 -- ----------------------------------------------------------
 CREATE TABLE cat_escolaridad (
     id      SERIAL          PRIMARY KEY,
@@ -214,15 +239,42 @@ CREATE TABLE cat_escolaridad (
 );
 
 INSERT INTO cat_escolaridad (nombre) VALUES
-    ('Ninguna'),
+    -- Sin escolaridad
+    ('Sin escolaridad'),
+    -- Educación Básica — Preescolar (SEP)
     ('Preescolar'),
+    ('Preescolar Incompleto'),
+    -- Educación Básica — Primaria (SEP)
     ('Primaria Incompleta'),
     ('Primaria Completa'),
+    -- Educación Básica — Secundaria (SEP)
     ('Secundaria Incompleta'),
     ('Secundaria Completa'),
-    ('Bachillerato o Superior');
+    -- Educación Media Superior (SEP)
+    ('Bachillerato o Preparatoria Incompleta'),
+    ('Bachillerato o Preparatoria Completa'),
+    ('Carrera Técnica o Vocacional'),
+    -- Educación Superior
+    ('Licenciatura Incompleta'),
+    ('Licenciatura Completa'),
+    -- Modalidades especiales SEP/INEA
+    ('Educación Especial'),
+    ('Centro de Atención Múltiple (CAM)'),
+    ('Educación para Adultos (INEA)'),
+    ('Primaria para Adultos (INEA)'),
+    ('Secundaria para Adultos (INEA / Telesecundaria)'),
+    -- Rezago educativo INEA
+    ('Rezago Educativo — Analfabeta'),
+    ('Rezago Educativo — Sin Primaria Completa'),
+    ('Rezago Educativo — Sin Secundaria Completa'),
+    -- Valor especial
+    ('No aplica / Menor de edad sin escolaridad formal'),
+    ('Desconocido');
 
-COMMENT ON TABLE cat_escolaridad IS 'Catálogo de niveles de escolaridad del NNA conforme al FUD/LGDNNA.';
+COMMENT ON TABLE cat_escolaridad IS
+    'Catálogo de niveles de escolaridad homologado con el Sistema Educativo Nacional (SEP). '
+    'Incluye educación básica, media superior, superior, modalidades especiales (CAM, INEA) '
+    'y categorías de rezago educativo conforme al FUD/LGDNNA e INEA.';
 
 -- ----------------------------------------------------------
 --  2J. cat_motivo_ingreso
