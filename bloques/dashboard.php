@@ -26,6 +26,32 @@ if ($hora >= 6 && $hora < 12) {
 } else {
     $saludo = "Buenas noches";
 }
+
+// "Mis casos": NNA donde el usuario logueado ha registrado algún seguimiento
+$mis_casos = [];
+try {
+    $id_usuario = $_SESSION['usuario']['id_usuario'] ?? null;
+    if ($id_usuario) {
+        $stmt = $pdo->prepare("
+            SELECT 
+                n.curp,
+                n.nombre,
+                n.prim_ap,
+                COUNT(es.id_seguimiento) AS total_notas,
+                MAX(es.fecha_atencion)   AS ultima_atencion
+            FROM expediente_seguimiento es
+            JOIN nna n ON n.id_nna = es.id_nna
+            WHERE es.id_usuario = :id_usuario
+            GROUP BY n.id_nna, n.curp, n.nombre, n.prim_ap
+            ORDER BY ultima_atencion DESC
+        ");
+        $stmt->execute([':id_usuario' => $id_usuario]);
+        $mis_casos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+} catch (PDOException $e) {
+    // En producción: error_log($e->getMessage());
+    $mis_casos = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -98,6 +124,38 @@ if ($hora >= 6 && $hora < 12) {
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
         }
         .content-card h3 { color: #2c3e50; margin-bottom: 10px; }
+        /* Estilos para Mis Casos */
+        .casos-card {
+            background-color: rgba(255,255,255,0.95);
+            padding: 30px 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .casos-card h3 { color: #2c3e50; margin-bottom: 15px; }
+        .caso-row {
+            border-bottom: 1px solid #eee;
+            padding: 12px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .caso-row:last-child { border-bottom: none; }
+        .caso-info strong { color: #2c3e50; }
+        .caso-info small { color: #999; }
+        .btn-ver-caso {
+            background-color: #a18cd1;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+        .btn-ver-caso:hover { background-color: #8c76be; }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(-20px); }
             to   { opacity: 1; transform: translateY(0); }
@@ -135,6 +193,24 @@ if ($hora >= 6 && $hora < 12) {
         <?php endif; ?>
 
         <a href="logout.php" class="nav-item logout">🚪 Cerrar Sesión</a>
+    </div>
+
+    <!-- ===== MIS CASOS (Seguimiento multidisciplinario) ===== -->
+    <div class="casos-card">
+        <h3>📂 Mis Casos</h3>
+        <?php if (count($mis_casos) > 0): ?>
+            <?php foreach ($mis_casos as $c): ?>
+                <div class="caso-row">
+                    <div class="caso-info">
+                        <strong><?= htmlspecialchars($c['nombre'] . " " . $c['prim_ap']) ?></strong><br>
+                        <small><?= (int) $c['total_notas'] ?> seguimiento(s) · Última atención: <?= htmlspecialchars($c['ultima_atencion']) ?></small>
+                    </div>
+                    <a href="ver_seguimientos.php?curp=<?= urlencode($c['curp']) ?>" class="btn-ver-caso">Ver caso</a>
+                </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <p style="color:#666;">Aún no tienes casos con seguimientos registrados. Entra al perfil de un NNA y registra un seguimiento para que aparezca aquí.</p>
+        <?php endif; ?>
     </div>
 
     <div class="content-card">

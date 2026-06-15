@@ -109,6 +109,7 @@ try {
         .btn-cambiar { background-color: #8e44ad; } /* Morado si ya tiene tutor */
         .btn-editar { background-color: #f39c12; }
         .btn-perfil { background-color: #3498db; }
+        .btn-seguimiento { background-color: #16a085; } /* Verde azulado para seguimientos */
         
         .search-container { margin-bottom: 20px; display: flex; gap: 10px; }
         .search-container input { flex-grow: 1; padding: 8px; text-transform: uppercase; }
@@ -182,6 +183,7 @@ try {
                             <?php endif; ?>
 
                             <a href="ver_perfil_nna.php?curp=<?= urlencode($row['curp']) ?>" class="btn-accion btn-perfil">👁️ Perfil Completo</a>
+                            <a href="ver_seguimientos.php?curp=<?= urlencode($row['curp']) ?>" class="btn-accion btn-seguimiento">📋 Seguimientos</a>
                             <a href="editar_nna.php?curp=<?= urlencode($row['curp']) ?>" class="btn-accion btn-editar">✏️ Editar Datos</a>
                         </td>
                     </tr>
