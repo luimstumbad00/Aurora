@@ -234,7 +234,7 @@ function bool_badge($val, $label) {
             <div class="dato-box"><label>Escolaridad</label><span><?= htmlspecialchars($nna['escolaridad'] ?? 'No especificada') ?></span></div>
             <div class="dato-box"><label>Grupo Sanguíneo</label><span><?= htmlspecialchars($nna['grupo_sanguineo'] ?? 'Desconocido') ?></span></div>
             <div class="dato-box"><label>Motivo de Ingreso</label><span><?= htmlspecialchars($nna['motivo_ingreso'] ?? 'No especificado') ?></span></div>
-            <div class="dato-box"><label>Lugar de Nacimiento</label><span><?= htmlspecialchars($nna['lugar_nacimiento'] ?? 'No especificado') ?></span></div>
+            <div class="dato-box"><label>Lugar de Origen</label><span><?= htmlspecialchars($nna['lugar_nacimiento'] ?? 'No especificado') ?></span></div>
             <div class="dato-box"><label>Nacionalidad(es)</label><span><?= htmlspecialchars(strtoupper($nna['nacionalidad'] ?? 'No especificada')) ?></span></div>
         </div>
     </div>

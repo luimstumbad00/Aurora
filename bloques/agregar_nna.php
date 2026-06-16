@@ -354,7 +354,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 </select>
             </div>
             <div>
-                <label>Lugar de Nacimiento (Entidad):</label>
+                <label>Lugar de Origen (Entidad):</label>
                 <select name="luga_nac_nna">
                     <option value="">NO ESPECIFICADO</option>
                     <?php foreach ($estados as $e): ?>
