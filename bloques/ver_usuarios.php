@@ -1,20 +1,17 @@
 <?php
 session_start();
 
-// 1. Validar que el usuario haya iniciado sesión
 if (!isset($_SESSION['usuario'])) {
     header("Location: ../index.php"); 
     exit();
 }
 
-// 2. Validar que solo el Administrador pueda estar aquí
 $rolActual = $_SESSION['usuario']['rol'];
 if ($rolActual !== 'Administrador') {
     header("Location: dashboard.php?error=acceso_denegado");
     exit();
 }
 
-// Obtenemos la CURP del usuario logueado para las validaciones
 $curpLogueado = $_SESSION['usuario']['curp'];
 
 ini_set('display_errors', 1);
@@ -24,7 +21,6 @@ require '../config/database.php';
 $mensaje = "";
 $tipoMensaje = "";
 
-// Atrapamos el mensaje de éxito o error si venimos de una redirección al borrar
 if (isset($_GET['status'])) {
     if ($_GET['status'] == 'deleted') {
         $mensaje = "Usuario eliminado correctamente ✅";
@@ -38,7 +34,7 @@ if (isset($_GET['status'])) {
     }
 }
 
-// FASE DE BORRADO
+// BORRADO
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] === 'delete') { 
     $curpAEliminar = $_POST['curp'] ?? '';
 
@@ -49,15 +45,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
         }
 
         try {
-            $deleteQuery = "DELETE FROM usuario_sistema WHERE curp = :curp";
-            $stmtDel = $pdo->prepare($deleteQuery);
+            $stmtDel = $pdo->prepare("DELETE FROM usuario_sistema WHERE curp = :curp");
             $stmtDel->execute([':curp' => $curpAEliminar]);
-
             header("Location: " . $_SERVER['PHP_SELF'] . "?status=deleted");
             exit();
         } catch (PDOException $e) {
-            // Si el usuario tiene expedientes asociados, la FK RESTRICT impide el borrado
-            // En producción: error_log($e->getMessage());
             header("Location: " . $_SERVER['PHP_SELF'] . "?status=error");
             exit();
         }
@@ -67,9 +59,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     }
 }
 
-// FASE DE LECTURA DE DATOS (adaptada al esquema normalizado)
-// usuario_sistema solo guarda: curp, rfc, nombre, apellido_paterno, apellido_materno,
-// correo, estado, fecha_registro, id_rol (→cat_rol_sistema), id_municipio_labora (→cat_municipio)
+// LECTURA — v7: +equipo
 $usuarios = [];
 $queryAll = "
     SELECT 
@@ -83,11 +73,13 @@ $queryAll = "
         u.fecha_registro,
         r.nombre             AS rol,
         m.nom_mun            AS municipio_labora,
-        e.nom_ent            AS entidad_labora
+        e.nom_ent            AS entidad_labora,
+        eq.nombre_equipo     AS equipo
     FROM usuario_sistema u
     INNER JOIN cat_rol_sistema r       ON r.id = u.id_rol
     LEFT  JOIN cat_municipio m         ON m.id_municipio = u.id_municipio_labora
     LEFT  JOIN entidad_federativa e    ON e.id_ent = m.id_ent
+    LEFT  JOIN equipo eq               ON eq.id_equipo = u.id_equipo
     ORDER BY u.apellido_paterno, u.apellido_materno, u.nombre
 ";
 
@@ -97,7 +89,6 @@ try {
     while ($row = $stmtAll->fetch(PDO::FETCH_ASSOC)) {
         $nombreCompleto = trim($row['nombres'] . " " . $row['apellido_p'] . " " . ($row['apellido_m'] ?? ''));
 
-        // Lugar donde labora (único dato geográfico que existe para el usuario)
         if (!empty($row['municipio_labora'])) {
             $lugarLabora = $row['municipio_labora'];
             if (!empty($row['entidad_labora'])) {
@@ -115,11 +106,11 @@ try {
             'estado'           => $row['estado'], 
             'correo'           => $row['correo'],
             'fecha_registro'   => $row['fecha_registro'],
-            'lugar_labora'     => $lugarLabora
+            'lugar_labora'     => $lugarLabora,
+            'equipo'           => $row['equipo']
         ];
     }
 } catch (PDOException $e) {
-    // En producción: error_log($e->getMessage());
     $mensaje .= " No se pudieron cargar los usuarios.";
     $tipoMensaje = "error";
 }
@@ -143,9 +134,7 @@ try {
             font-family: Arial, sans-serif;
             transition: background-color 0.3s;
         }
-        .btn-regresar:hover {
-            background-color: #2c3e50;
-        }
+        .btn-regresar:hover { background-color: #2c3e50; }
         .usuario-tarjeta {
             border: 1px solid #ddd;
             padding: 12px;
@@ -162,71 +151,29 @@ try {
             padding-bottom: 8px;
             margin-bottom: 8px;
         }
-        .usuario-datos {
-            margin-top: 8px;
-            font-size: 14px;
-        }
-        .usuario-datos div {
-            margin-bottom: 4px; 
-        }
-        
-        /* Contenedor para alinear los botones de acciones */
-        .acciones-btn {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
+        .usuario-datos { margin-top: 8px; font-size: 14px; }
+        .usuario-datos div { margin-bottom: 4px; }
+        .acciones-btn { display: flex; gap: 10px; align-items: center; }
         .btn-borrar {
-            background: #e74c3c;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
+            background: #e74c3c; color: white; border: none;
+            padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;
         }
-        .btn-borrar:hover {
-            background: #c0392b;
-        }
-        
-        /* Nuevo botón de editar */
+        .btn-borrar:hover { background: #c0392b; }
         .btn-editar {
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
+            background: #3498db; color: white; border: none;
+            padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;
         }
-        .btn-editar:hover {
-            background: #2980b9;
-        }
-
+        .btn-editar:hover { background: #2980b9; }
         .etiqueta-yo {
-            background: #95a5a6;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-weight: bold;
-            font-size: 13px;
+            background: #95a5a6; color: white;
+            padding: 8px 12px; border-radius: 6px; font-weight: bold; font-size: 13px;
         }
-        .mensaje {
-            padding: 10px;
-            border-radius: 6px;
-            margin-bottom: 12px;
-            font-weight: bold;
-        }
-        .success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+        .mensaje { padding: 10px; border-radius: 6px; margin-bottom: 12px; font-weight: bold; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error   { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .tag-equipo {
+            background: #8e44ad; color: #fff; font-size: 11px;
+            padding: 2px 8px; border-radius: 4px; margin-left: 6px;
         }
     </style>
 </head>
@@ -253,11 +200,13 @@ try {
                     <div class="usuario-header">
                         <strong>
                             <?= htmlspecialchars($u['nombre_completo']) ?>
+                            <?php if (!empty($u['equipo'])): ?>
+                                <span class="tag-equipo">🏥 <?= htmlspecialchars($u['equipo']) ?></span>
+                            <?php endif; ?>
                             <br><small style="color: #666; font-weight: normal;">CURP: <?= htmlspecialchars($u['curp']) ?></small>
                         </strong>
                         
                         <div class="acciones-btn">
-                            
                             <form action="modificar_usuario.php" method="POST" style="margin:0;">
                                 <input type="hidden" name="curp_buscar" value="<?= htmlspecialchars($u['curp']) ?>">
                                 <button type="submit" name="buscar" class="btn-editar">✏️ Editar</button>
@@ -274,19 +223,18 @@ try {
                                     </button> 
                                 </form> 
                             <?php endif; ?>
-
                         </div>
                     </div> 
 
                     <div class="usuario-datos"> 
-                    <!-- Campos mapeados al esquema normalizado (usuario_sistema + catálogos) -->
-                    <div><strong>RFC:</strong> <?= htmlspecialchars($u['rfc'] ?? '') ?></div> 
-                    <div><strong>Rol:</strong> <?= htmlspecialchars($u['rol'] ?? 'No asignado') ?></div> 
-                    <div><strong>Estado:</strong> <?= htmlspecialchars($u['estado'] ?? '') ?></div>
-                    <div><strong>Correo:</strong> <?= htmlspecialchars($u['correo'] ?? '') ?></div>
-                    <div><strong>Municipio donde labora:</strong> <?= htmlspecialchars($u['lugar_labora'] ?? 'No asignado') ?></div>
-                    <div><strong>Fecha de registro:</strong> <?= htmlspecialchars($u['fecha_registro'] ?? '') ?></div>
-                </div>
+                        <div><strong>RFC:</strong> <?= htmlspecialchars($u['rfc'] ?? '') ?></div> 
+                        <div><strong>Rol:</strong> <?= htmlspecialchars($u['rol'] ?? 'No asignado') ?></div> 
+                        <div><strong>Estado:</strong> <?= htmlspecialchars($u['estado'] ?? '') ?></div>
+                        <div><strong>Correo:</strong> <?= htmlspecialchars($u['correo'] ?? '') ?></div>
+                        <div><strong>Municipio donde labora:</strong> <?= htmlspecialchars($u['lugar_labora'] ?? 'No asignado') ?></div>
+                        <div><strong>Equipo:</strong> <?= htmlspecialchars($u['equipo'] ?? 'Sin equipo') ?></div>
+                        <div><strong>Fecha de registro:</strong> <?= htmlspecialchars($u['fecha_registro'] ?? '') ?></div>
+                    </div>
                 </div>
             <?php endforeach; ?>
         <?php else: ?>

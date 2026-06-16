@@ -28,6 +28,7 @@ $curp_original = trim($_GET['curp']);
 // ============================================================
 $sexos = $paises = $tipos_contacto = $escolaridades = [];
 $grupos_sanguineos = $motivos = $estados = $municipios = [];
+$equipos = [];
 
 try {
     $sexos             = $pdo->query("SELECT id, nombre FROM cat_sexo            ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
@@ -37,6 +38,7 @@ try {
     $grupos_sanguineos = $pdo->query("SELECT id, nombre FROM cat_grupo_sanguineo  ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
     $motivos           = $pdo->query("SELECT id, nombre FROM cat_motivo_ingreso   ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
     $estados           = $pdo->query("SELECT id_ent, nom_ent FROM entidad_federativa ORDER BY nom_ent")->fetchAll(PDO::FETCH_ASSOC);
+    $equipos           = $pdo->query("SELECT id_equipo, nombre_equipo FROM equipo WHERE estado = 'ACTIVO' ORDER BY nombre_equipo")->fetchAll(PDO::FETCH_ASSOC);
     $municipios        = $pdo->query("
         SELECT m.id_municipio, m.nom_mun, e.nom_ent
         FROM   cat_municipio m
@@ -142,6 +144,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['actualizar_nna'])) {
     $id_motivo       = !empty($_POST['id_motivo_ingreso'])  ? (int)$_POST['id_motivo_ingreso']  : null;
     $id_estado_nac   = !empty($_POST['luga_nac_nna'])       ? (int)$_POST['luga_nac_nna']       : null;
     $id_pais         = !empty($_POST['id_pais'])            ? (int)$_POST['id_pais']            : null;
+    $id_equipo       = !empty($_POST['id_equipo'])          ? (int)$_POST['id_equipo']          : null;
 
     $situacion_calle    = ($_POST['situacion_calle']    ?? '') === 'Si' ? 'true' : 'false';
     $es_migrante        = ($_POST['es_migrante']        ?? '') === 'Si' ? 'true' : 'false';
@@ -166,7 +169,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['actualizar_nna'])) {
         try {
             $pdo->beginTransaction();
 
-            // Actualizar NNA
+            // Actualizar NNA (v7: +id_equipo)
             $pdo->prepare("
                 UPDATE nna SET
                     nombre             = :nombre,
@@ -178,6 +181,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['actualizar_nna'])) {
                     id_grupo_sanguineo = :id_grupo_sang,
                     id_motivo_ingreso  = :id_motivo,
                     luga_nac_nna       = :luga_nac,
+                    id_equipo          = :id_equipo,
                     situacion_calle    = :sit_calle,
                     es_migrante        = :migrante,
                     es_refugiado       = :refugiado,
@@ -193,6 +197,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['actualizar_nna'])) {
                 ':id_grupo_sang'  => $id_grupo_sang,
                 ':id_motivo'      => $id_motivo,
                 ':luga_nac'       => $id_estado_nac,
+                ':id_equipo'      => $id_equipo,
                 ':sit_calle'      => $situacion_calle,
                 ':migrante'       => $es_migrante,
                 ':refugiado'      => $es_refugiado,
@@ -202,45 +207,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['actualizar_nna'])) {
 
             // Actualizar dirección si se proporcionó municipio y colonia
             if ($id_municipio && $colonia !== '') {
-                // Verificar si ya tiene dirección
                 $id_dir_actual = $pdo->prepare("SELECT dir_actual FROM nna WHERE id_nna = :id");
                 $id_dir_actual->execute([':id' => $id_nna_actual]);
                 $id_dir = $id_dir_actual->fetchColumn();
 
                 if ($id_dir) {
-                    // Actualizar dirección existente
                     $pdo->prepare("
                         UPDATE direccion SET
-                            calle_dir       = :calle,
-                            no_ext_dir      = :num_ext,
-                            no_int_dir      = :num_int,
-                            colonia_abierta = :colonia,
-                            codigo_postal   = :cp,
-                            id_municipio    = :id_municipio
+                            calle_dir = :calle, no_ext_dir = :num_ext, no_int_dir = :num_int,
+                            colonia_abierta = :colonia, codigo_postal = :cp, id_municipio = :id_municipio
                         WHERE id_dir = :id_dir
                     ")->execute([
-                        ':calle'        => $calle !== '' ? $calle : null,
-                        ':num_ext'      => $num_ext !== '' ? $num_ext : null,
-                        ':num_int'      => $num_int,
-                        ':colonia'      => $colonia,
-                        ':cp'           => $cp,
-                        ':id_municipio' => $id_municipio,
-                        ':id_dir'       => $id_dir
+                        ':calle' => $calle !== '' ? $calle : null, ':num_ext' => $num_ext !== '' ? $num_ext : null,
+                        ':num_int' => $num_int, ':colonia' => $colonia, ':cp' => $cp,
+                        ':id_municipio' => $id_municipio, ':id_dir' => $id_dir
                     ]);
                 } else {
-                    // Crear dirección nueva y vincularla
                     $stmtDir = $pdo->prepare("
                         INSERT INTO direccion (calle_dir, no_ext_dir, no_int_dir, colonia_abierta, codigo_postal, id_municipio)
                         VALUES (:calle, :num_ext, :num_int, :colonia, :cp, :id_municipio)
                         RETURNING id_dir
                     ");
                     $stmtDir->execute([
-                        ':calle'        => $calle !== '' ? $calle : null,
-                        ':num_ext'      => $num_ext !== '' ? $num_ext : null,
-                        ':num_int'      => $num_int,
-                        ':colonia'      => $colonia,
-                        ':cp'           => $cp,
-                        ':id_municipio' => $id_municipio
+                        ':calle' => $calle !== '' ? $calle : null, ':num_ext' => $num_ext !== '' ? $num_ext : null,
+                        ':num_int' => $num_int, ':colonia' => $colonia, ':cp' => $cp, ':id_municipio' => $id_municipio
                     ]);
                     $nuevo_id_dir = $stmtDir->fetchColumn();
                     $pdo->prepare("UPDATE nna SET dir_actual = :id_dir WHERE id_nna = :id_nna")
@@ -269,7 +259,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['actualizar_nna'])) {
 }
 
 // ============================================================
-//  Cargar datos actuales del NNA
+//  Cargar datos actuales del NNA (v7: +id_equipo)
 // ============================================================
 try {
     $stmt = $pdo->prepare("
@@ -277,20 +267,11 @@ try {
             n.id_nna, n.curp, n.nombre,
             n.prim_ap            AS apellido_paterno,
             n.seg_ap             AS apellido_materno,
-            n.fecha_nacimiento,
-            n.id_sexo,
-            n.id_escolaridad,
-            n.id_grupo_sanguineo,
-            n.id_motivo_ingreso,
-            n.luga_nac_nna,
+            n.fecha_nacimiento, n.id_sexo, n.id_escolaridad, n.id_grupo_sanguineo,
+            n.id_motivo_ingreso, n.luga_nac_nna, n.id_equipo,
             n.situacion_calle, n.es_migrante, n.es_refugiado, n.poblacion_indigena,
-            d.id_dir,
-            d.calle_dir          AS calle,
-            d.no_ext_dir         AS num_ext,
-            d.no_int_dir         AS num_int,
-            d.colonia_abierta    AS colonia,
-            d.codigo_postal      AS cp,
-            d.id_municipio,
+            d.id_dir, d.calle_dir AS calle, d.no_ext_dir AS num_ext, d.no_int_dir AS num_int,
+            d.colonia_abierta AS colonia, d.codigo_postal AS cp, d.id_municipio,
             (SELECT nn.id_pais FROM nna_nacionalidad nn WHERE nn.id_nna = n.id_nna LIMIT 1) AS id_pais
         FROM nna n
         LEFT JOIN direccion d ON d.id_dir = n.dir_actual
@@ -456,6 +437,18 @@ try {
                     <?php foreach ($paises as $p): ?>
                         <option value="<?= $p['id'] ?>" <?= ($nna['id_pais']==$p['id'])?'selected':'' ?>>
                             <?= htmlspecialchars(mb_strtoupper($p['nombre'],'UTF-8')) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <!-- v7: Equipo multidisciplinario -->
+                <label>🏥 Equipo Asignado:</label>
+                <select name="id_equipo">
+                    <option value="">SIN EQUIPO</option>
+                    <?php foreach ($equipos as $eq): ?>
+                        <option value="<?= $eq['id_equipo'] ?>" <?= ($nna['id_equipo']==$eq['id_equipo'])?'selected':'' ?>>
+                            <?= htmlspecialchars(mb_strtoupper($eq['nombre_equipo'],'UTF-8')) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>

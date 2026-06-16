@@ -190,6 +190,7 @@ try {
             <a href="agregar_nna.php"      class="nav-item">➕ Agregar NNA</a>
             <a href="ver_tutores.php"      class="nav-item">👨‍👩‍👧 Ver Tutores</a>
             <a href="asignar_tutor.php"    class="nav-item">🔗 Agregar Tutor</a>
+            <a href="ver_equipos.php" class="nav-item">🏥 Equipos</a>
         <?php endif; ?>
 
         <a href="logout.php" class="nav-item logout">🚪 Cerrar Sesión</a>

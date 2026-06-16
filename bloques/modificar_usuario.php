@@ -1,13 +1,11 @@
 <?php
-session_start(); // Arrancamos la sesión que viene del login
+session_start();
 
-// 1. Validar que el usuario haya iniciado sesión
 if (!isset($_SESSION['usuario'])) {
     header("Location: ../index.php"); 
     exit();
 }
 
-// 2. Validar que solo el Administrador pueda estar aquí
 $rolActual = $_SESSION['usuario']['rol'];
 if ($rolActual !== 'Administrador') {
     header("Location: dashboard.php?error=acceso_denegado");
@@ -23,15 +21,16 @@ $mensaje = "";
 $tipoMensaje = "";
 $usuario = null;
 
-// Atrapamos el mensaje de éxito si venimos de una redirección (Patrón PRG)
 if (isset($_GET['status']) && $_GET['status'] == 'success') {
     $mensaje = "Datos del usuario actualizados correctamente ✅";
     $tipoMensaje = "success";
 }
 
-// Catálogos para poblar los <select>
+// Catálogos
 $roles = [];
 $municipios = [];
+$equipos = [];
+
 try {
     $roles = $pdo->query("SELECT id, nombre FROM cat_rol_sistema ORDER BY nombre")
                  ->fetchAll(PDO::FETCH_ASSOC);
@@ -42,8 +41,10 @@ try {
         INNER JOIN entidad_federativa e ON e.id_ent = m.id_ent
         ORDER BY e.nom_ent, m.nom_mun
     ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $equipos = $pdo->query("SELECT id_equipo, nombre_equipo FROM equipo WHERE estado = 'ACTIVO' ORDER BY nombre_equipo")
+                   ->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    // En producción: error_log($e->getMessage());
     $mensaje = "No se pudieron cargar los catálogos ❌";
     $tipoMensaje = "error";
 }
@@ -55,21 +56,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $curp_buscar = strtoupper(trim($_POST['curp_buscar'] ?? ''));
         
         try {
-            // SELECT ajustado a las columnas reales de usuario_sistema + FKs
-            $query_buscar = "
+            $stmt = $pdo->prepare("
                 SELECT 
                     curp, rfc, 
                     apellido_paterno AS apellido_p, 
                     apellido_materno AS apellido_m, 
                     nombre           AS nombres, 
-                    correo, 
-                    estado,
-                    id_rol, 
-                    id_municipio_labora
+                    correo, estado,
+                    id_rol, id_municipio_labora, id_equipo
                 FROM usuario_sistema 
                 WHERE curp = :curp
-            ";
-            $stmt = $pdo->prepare($query_buscar);
+            ");
             $stmt->execute([':curp' => $curp_buscar]);
             $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -81,7 +78,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $tipoMensaje = "error";
             }
         } catch (PDOException $e) {
-            // En producción: error_log($e->getMessage());
             $mensaje = "Error al buscar usuario ❌";
             $tipoMensaje = "error";
         }
@@ -96,16 +92,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $nombres    = strtoupper(trim($_POST['nombres'] ?? ''));
         $correo     = strtolower(trim($_POST['correo'] ?? ''));
 
-        $id_rol           = !empty($_POST['id_rol']) ? (int) $_POST['id_rol'] : null;
-        $id_municipio_lab = !empty($_POST['id_municipio_labora']) ? (int) $_POST['id_municipio_labora'] : null;
+        $id_rol           = !empty($_POST['id_rol'])              ? (int)$_POST['id_rol']              : null;
+        $id_municipio_lab = !empty($_POST['id_municipio_labora']) ? (int)$_POST['id_municipio_labora'] : null;
+        $id_equipo        = !empty($_POST['id_equipo'])           ? (int)$_POST['id_equipo']           : null;
 
         if (!$id_rol) {
             $mensaje = "Debes seleccionar un rol ⚠️";
             $tipoMensaje = "error";
         } else {
             try {
-                // UPDATE plano sobre usuario_sistema (una sola tabla → sin transacción)
-                $query_actualizar = "
+                $stmt = $pdo->prepare("
                     UPDATE usuario_sistema SET 
                         rfc                 = :rfc, 
                         nombre              = :nombre, 
@@ -113,10 +109,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         apellido_materno    = :apellido_m,
                         correo              = :correo,
                         id_rol              = :id_rol,
-                        id_municipio_labora = :id_municipio
+                        id_municipio_labora = :id_municipio,
+                        id_equipo           = :id_equipo
                     WHERE curp = :curp
-                ";
-                $stmt = $pdo->prepare($query_actualizar);
+                ");
                 $stmt->execute([
                     ':rfc'          => $rfc !== '' ? $rfc : null,
                     ':nombre'       => $nombres,
@@ -125,10 +121,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     ':correo'       => $correo,
                     ':id_rol'       => $id_rol,
                     ':id_municipio' => $id_municipio_lab,
+                    ':id_equipo'    => $id_equipo,
                     ':curp'         => $curp
                 ]);
 
-                // PRG: limpiamos el POST para que F5 no reenvíe
                 header("Location: " . $_SERVER['PHP_SELF'] . "?status=success");
                 exit();
 
@@ -157,30 +153,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <link rel="stylesheet" href="../css/style.css">
     <style>
         .btn-regresar {
-            display: inline-block;
-            margin-bottom: 20px;
-            padding: 10px 15px;
-            background-color: #34495e;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: bold;
-            font-family: Arial, sans-serif;
+            display: inline-block; margin-bottom: 20px; padding: 10px 15px;
+            background-color: #34495e; color: white; text-decoration: none;
+            border-radius: 5px; font-weight: bold; font-family: Arial, sans-serif;
             transition: background-color 0.3s;
         }
-        .btn-regresar:hover {
-            background-color: #2c3e50;
-        }
-        /* Estilos para las etiquetas de los campos */
+        .btn-regresar:hover { background-color: #2c3e50; }
         label {
-            display: block;
-            text-align: left;
-            margin-top: 15px;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #2c3e50;
-            font-size: 14px;
+            display: block; text-align: left; margin-top: 15px; margin-bottom: 5px;
+            font-weight: bold; color: #2c3e50; font-size: 14px;
         }
+        input[type="text"] { text-transform: uppercase; }
     </style>
 </head>
 <body>
@@ -192,15 +175,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <h1>Buscar Usuario</h1>
 
     <?php if ($mensaje): ?>
-    <p style="color: <?php echo $tipoMensaje == 'success' ? 'green' : 'red'; ?>;">
-        <?php echo $mensaje; ?>
+    <p style="color: <?= $tipoMensaje == 'success' ? 'green' : 'red' ?>; font-weight:bold;
+              background: <?= $tipoMensaje == 'success' ? '#d4edda' : '#f8d7da' ?>;
+              padding:10px; border-radius:5px;">
+        <?= htmlspecialchars($mensaje) ?>
     </p>
     <?php endif; ?>
 
     <form method="POST">
-        <!-- Mantener el valor buscado en el input -->
         <label for="curp_buscar">Ingrese la CURP del usuario:</label>
-        <input type="text" id="curp_buscar" name="curp_buscar" placeholder="Ej. ABCD123456EFGHIJ78" required maxlength="18" value="<?php echo htmlspecialchars($_POST['curp_buscar'] ?? ''); ?>">
+        <input type="text" id="curp_buscar" name="curp_buscar" placeholder="Ej. ABCD123456EFGHIJ78" required maxlength="18" value="<?= htmlspecialchars($_POST['curp_buscar'] ?? '') ?>">
         <button type="submit" name="buscar">Buscar</button>
     </form>
 
@@ -212,27 +196,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <form method="POST">
             
             <label for="curp">CURP (No modificable):</label>
-            <input type="text" id="curp" name="curp" value="<?php echo htmlspecialchars($usuario['curp'] ?? ''); ?>" readonly style="background-color: #e9ecef;">
+            <input type="text" id="curp" name="curp" value="<?= htmlspecialchars($usuario['curp'] ?? '') ?>" readonly style="background-color: #e9ecef;">
             
             <label for="rfc">RFC:</label>
-            <input type="text" id="rfc" name="rfc" value="<?php echo htmlspecialchars($usuario['rfc'] ?? ''); ?>" required maxlength="13">
+            <input type="text" id="rfc" name="rfc" value="<?= htmlspecialchars($usuario['rfc'] ?? '') ?>" maxlength="13">
 
             <label for="apellido_p">Apellido Paterno:</label>
-            <input type="text" id="apellido_p" name="apellido_p" value="<?php echo htmlspecialchars($usuario['apellido_p'] ?? ''); ?>" required>
+            <input type="text" id="apellido_p" name="apellido_p" value="<?= htmlspecialchars($usuario['apellido_p'] ?? '') ?>" required>
             
             <label for="apellido_m">Apellido Materno:</label>
-            <input type="text" id="apellido_m" name="apellido_m" value="<?php echo htmlspecialchars($usuario['apellido_m'] ?? ''); ?>" required>
+            <input type="text" id="apellido_m" name="apellido_m" value="<?= htmlspecialchars($usuario['apellido_m'] ?? '') ?>">
             
             <label for="nombres">Nombres:</label>
-            <input type="text" id="nombres" name="nombres" value="<?php echo htmlspecialchars($usuario['nombres'] ?? ''); ?>" required>
+            <input type="text" id="nombres" name="nombres" value="<?= htmlspecialchars($usuario['nombres'] ?? '') ?>" required>
 
             <label for="id_municipio_labora">Municipio donde labora (Opcional):</label>
             <select id="id_municipio_labora" name="id_municipio_labora">
                 <option value="">SIN ASIGNAR</option>
                 <?php foreach ($municipios as $m): ?>
-                    <option value="<?= (int) $m['id_municipio'] ?>"
-                        <?php echo (($usuario['id_municipio_labora'] ?? '') == $m['id_municipio']) ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($m['nom_mun'] . ' — ' . $m['nom_ent']); ?>
+                    <option value="<?= (int)$m['id_municipio'] ?>"
+                        <?= (($usuario['id_municipio_labora'] ?? '') == $m['id_municipio']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars(mb_strtoupper($m['nom_mun'] . ' — ' . $m['nom_ent'], 'UTF-8')) ?>
                     </option>
                 <?php endforeach; ?>
             </select>
@@ -241,15 +225,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <select id="id_rol" name="id_rol" required>
                 <option value="" hidden>Seleccione un rol</option>
                 <?php foreach ($roles as $r): ?>
-                    <option value="<?= (int) $r['id'] ?>"
-                        <?php echo (($usuario['id_rol'] ?? '') == $r['id']) ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars(str_replace('_', ' ', $r['nombre'])); ?>
+                    <option value="<?= (int)$r['id'] ?>"
+                        <?= (($usuario['id_rol'] ?? '') == $r['id']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars(str_replace('_', ' ', $r['nombre'])) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+
+            <!-- v7: Equipo multidisciplinario -->
+            <label for="id_equipo">🏥 Equipo Multidisciplinario (Opcional):</label>
+            <select id="id_equipo" name="id_equipo">
+                <option value="">SIN EQUIPO</option>
+                <?php foreach ($equipos as $eq): ?>
+                    <option value="<?= (int)$eq['id_equipo'] ?>"
+                        <?= (($usuario['id_equipo'] ?? '') == $eq['id_equipo']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars(mb_strtoupper($eq['nombre_equipo'], 'UTF-8')) ?>
                     </option>
                 <?php endforeach; ?>
             </select>
 
             <label for="correo">Correo Electrónico:</label>
-            <input type="email" id="correo" name="correo" value="<?php echo htmlspecialchars($usuario['correo'] ?? ''); ?>" required>
+            <input type="email" id="correo" name="correo" value="<?= htmlspecialchars($usuario['correo'] ?? '') ?>" required>
 
             <button type="submit" name="actualizar" style="margin-top: 20px;">Guardar Cambios</button>
 

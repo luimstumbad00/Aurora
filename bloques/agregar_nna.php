@@ -29,20 +29,22 @@ $sexos        = $estados = $municipios = $paises  = [];
 $escolaridades = $grupos_sanguineos = $motivos   = [];
 $lenguas      = $niveles = $tipos_disc = $grados  = [];
 $tipos_contacto = [];
+$equipos = [];
 
 try {
-    $sexos           = $pdo->query("SELECT id, nombre FROM cat_sexo            ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
-    $estados         = $pdo->query("SELECT id_ent, nom_ent FROM entidad_federativa ORDER BY nom_ent")->fetchAll(PDO::FETCH_ASSOC);
-    $paises          = $pdo->query("SELECT id, nombre FROM cat_pais             ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
-    $escolaridades   = $pdo->query("SELECT id, nombre FROM cat_escolaridad      ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
-    $grupos_sanguineos = $pdo->query("SELECT id, nombre FROM cat_grupo_sanguineo ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
-    $motivos         = $pdo->query("SELECT id, nombre FROM cat_motivo_ingreso   ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
-    $lenguas         = $pdo->query("SELECT id, nombre FROM cat_lengua           ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
-    $niveles         = $pdo->query("SELECT id, nombre FROM cat_nivel_competencia ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
-    $tipos_disc      = $pdo->query("SELECT id, nombre FROM cat_tipo_discapacidad ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
-    $grados          = $pdo->query("SELECT id, nombre FROM cat_grado_dependencia ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
-    $tipos_contacto  = $pdo->query("SELECT id, nombre FROM cat_tipo_contacto    ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
-    $municipios      = $pdo->query("
+    $sexos             = $pdo->query("SELECT id, nombre FROM cat_sexo            ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
+    $estados           = $pdo->query("SELECT id_ent, nom_ent FROM entidad_federativa ORDER BY nom_ent")->fetchAll(PDO::FETCH_ASSOC);
+    $paises            = $pdo->query("SELECT id, nombre FROM cat_pais             ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
+    $escolaridades     = $pdo->query("SELECT id, nombre FROM cat_escolaridad      ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+    $grupos_sanguineos = $pdo->query("SELECT id, nombre FROM cat_grupo_sanguineo  ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+    $motivos           = $pdo->query("SELECT id, nombre FROM cat_motivo_ingreso   ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
+    $lenguas           = $pdo->query("SELECT id, nombre FROM cat_lengua           ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
+    $niveles           = $pdo->query("SELECT id, nombre FROM cat_nivel_competencia ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+    $tipos_disc        = $pdo->query("SELECT id, nombre FROM cat_tipo_discapacidad ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
+    $grados            = $pdo->query("SELECT id, nombre FROM cat_grado_dependencia ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+    $tipos_contacto    = $pdo->query("SELECT id, nombre FROM cat_tipo_contacto    ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
+    $equipos           = $pdo->query("SELECT id_equipo, nombre_equipo FROM equipo WHERE estado = 'ACTIVO' ORDER BY nombre_equipo")->fetchAll(PDO::FETCH_ASSOC);
+    $municipios        = $pdo->query("
         SELECT m.id_municipio, m.nom_mun, e.nom_ent
         FROM   cat_municipio m
         INNER JOIN entidad_federativa e ON e.id_ent = m.id_ent
@@ -64,11 +66,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $apellido_p      = strtoupper(trim($_POST['apellido_p'] ?? ''));
     $apellido_m      = !empty($_POST['apellido_m']) ? strtoupper(trim($_POST['apellido_m'])) : null;
     $nacimiento      = $_POST['nacimiento'] ?? '';
-    $id_sexo         = !empty($_POST['id_sexo'])           ? (int)$_POST['id_sexo']           : null;
-    $id_escolaridad  = !empty($_POST['id_escolaridad'])    ? (int)$_POST['id_escolaridad']    : null;
+    $id_sexo         = !empty($_POST['id_sexo'])            ? (int)$_POST['id_sexo']            : null;
+    $id_escolaridad  = !empty($_POST['id_escolaridad'])     ? (int)$_POST['id_escolaridad']     : null;
     $id_grupo_sang   = !empty($_POST['id_grupo_sanguineo']) ? (int)$_POST['id_grupo_sanguineo'] : null;
-    $id_motivo       = !empty($_POST['id_motivo_ingreso']) ? (int)$_POST['id_motivo_ingreso'] : null;
-    $id_estado_nac   = !empty($_POST['luga_nac_nna'])      ? (int)$_POST['luga_nac_nna']      : null;
+    $id_motivo       = !empty($_POST['id_motivo_ingreso'])  ? (int)$_POST['id_motivo_ingreso']  : null;
+    $id_estado_nac   = !empty($_POST['luga_nac_nna'])       ? (int)$_POST['luga_nac_nna']       : null;
+    $id_equipo       = !empty($_POST['id_equipo'])          ? (int)$_POST['id_equipo']          : null;
 
     // --- Dirección ---
     $calle        = strtoupper(trim($_POST['calle']    ?? ''));
@@ -86,10 +89,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $poblacion_indigena = ($_POST['pob_indigena']     ?? '') === 'Si';
 
     // --- Lenguas (múltiples) ---
-    $lenguas_ids    = $_POST['lengua_id']    ?? [];   // array de id_lengua
-    $lenguas_nivel  = $_POST['lengua_nivel'] ?? [];   // array de id_nivel_competencia
-    $lenguas_pref   = $_POST['lengua_pref']  ?? [];   // array de checkboxes
-    $lenguas_interp = $_POST['lengua_interp']?? [];   // array de checkboxes
+    $lenguas_ids    = $_POST['lengua_id']    ?? [];
+    $lenguas_nivel  = $_POST['lengua_nivel'] ?? [];
+    $lenguas_pref   = $_POST['lengua_pref']  ?? [];
+    $lenguas_interp = $_POST['lengua_interp']?? [];
 
     // --- Discapacidades (múltiples) ---
     $disc_tipo  = $_POST['disc_tipo']  ?? [];
@@ -137,13 +140,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 INSERT INTO nna (
                     folio_nna, nombre, prim_ap, seg_ap, fecha_nacimiento, curp,
                     id_sexo, id_escolaridad, id_motivo_ingreso, id_grupo_sanguineo,
-                    dir_actual, luga_nac_nna,
+                    id_equipo, dir_actual, luga_nac_nna,
                     situacion_calle, es_migrante, es_refugiado, poblacion_indigena,
                     registrado_por
                 ) VALUES (
                     :folio, :nombre, :prim_ap, :seg_ap, :fnac, :curp,
                     :id_sexo, :id_escolaridad, :id_motivo, :id_grupo_sang,
-                    :dir_actual, :luga_nac,
+                    :id_equipo, :dir_actual, :luga_nac,
                     :sit_calle, :migrante, :refugiado, :indigena,
                     :registrado_por
                 ) RETURNING id_nna
@@ -159,6 +162,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 ':id_escolaridad' => $id_escolaridad,
                 ':id_motivo'      => $id_motivo,
                 ':id_grupo_sang'  => $id_grupo_sang,
+                ':id_equipo'      => $id_equipo,
                 ':dir_actual'     => $id_dir,
                 ':luga_nac'       => $id_estado_nac,
                 ':sit_calle'      => $situacion_calle    ? 'true' : 'false',
@@ -360,6 +364,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             </div>
         </div>
 
+        <!-- v7: Equipo multidisciplinario asignado -->
+        <div class="grid2">
+            <div>
+                <label>🏥 Equipo Asignado:</label>
+                <select name="id_equipo">
+                    <option value="">SIN EQUIPO</option>
+                    <?php foreach ($equipos as $eq): ?>
+                        <option value="<?= $eq['id_equipo'] ?>"><?= htmlspecialchars(mb_strtoupper($eq['nombre_equipo'],'UTF-8')) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div></div>
+        </div>
+
         <!-- ====================================================
              SECCIÓN 2 — DIRECCIÓN
         ==================================================== -->
@@ -557,7 +575,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 </div>
 
 <script>
-// ---- Contadores para índices de checkboxes dinámicos ----
 let cntLengua = 1;
 let cntDisc   = 1;
 
