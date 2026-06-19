@@ -1,28 +1,48 @@
 -- ============================================================
---  PROYECTO AURORA — SCRIPT UNIFICADO Y DEFINITIVO v7 (FNBC)
+--  PROYECTO AURORA — SCRIPT UNIFICADO Y DEFINITIVO v8 (FNBC)
 --  PostgreSQL | Normalización: 1FN ✓  2FN ✓  3FN ✓  FNBC ✓
---  29 relaciones · Equipos Multidisciplinarios · Seguimiento de Visitas
+--  34 relaciones · Equipos Multidisciplinarios · Seguimiento de Visitas
+--  Lenguas universales · Discapacidades/Síndromes ampliadas · Trigger de permisos
 -- ============================================================
 --
---  CAMBIOS RESPECTO A v6.4:
---  [NEW] equipo                → tabla de equipos multidisciplinarios (estado ACTIVO/INACTIVO)
---  [REF] usuario_sistema       → +id_equipo FK (nullable) → un profesionista en 1 equipo
---  [REF] nna                   → +id_equipo FK (nullable) → un NNA atendido por 1 equipo
---  [NEW] cat_tipo_visita       → catálogo de tipos de visita (domiciliaria, legal, médica...)
---  [NEW] visita_seguimiento    → registro de visitas con estado y rol que la realizó
+--  CAMBIOS RESPECTO A v7:
+--  [REF] nna.dir_actual        → UNIQUE constraint → relación 1:1 estricta con direccion
+--  [REF] nna                   → +apodo VARCHAR(100) para construcción de confianza
+--  [REF] nna_lengua            → +variante_indigena, +autodenominacion, +modo_adquisicion
+--                                  (requiere_interprete eliminado: absorbido por modo/variante)
+--  [NEW] tutor_lengua          → espejo de nna_lengua para tutores
+--  [NEW] usuario_lengua        → espejo de nna_lengua para usuarios del sistema
+--  [REF] cat_tipo_discapacidad → +INSERT 'Síndrome' (síndromes tratados como discapacidad)
+--  [REF] cat_grado_dependencia → +descripcion TEXT
+--  [REF] nna_discapacidad      → +bajo_tratamiento BOOLEAN, +medicamento_actual TEXT
+--  [NEW] tutor_discapacidad    → espejo de nna_discapacidad para tutores
+--  [NEW] fn_verificar_rol_trabajador_social()  → función de validación de rol
+--  [NEW] trg_nna_rol_registrador               → TRIGGER BEFORE INSERT OR UPDATE en nna
 --
 --  JUSTIFICACIÓN FNBC DE LOS CAMBIOS:
---  · equipo↔usuario_sistema y equipo↔nna son relaciones 1:N → FK simple en el
---    lado "muchos". NO requieren tabla puente. La FK depende solo de la PK de la
---    fila → sin dependencias parciales ni transitivas → FNBC trivial.
---  · cat_tipo_visita: PK atómica {id}→{nombre} → FNBC automática.
---  · visita_seguimiento: PK atómica id_visita; todos los atributos dependen solo de
---    esa PK; id_rol_ejecutor se guarda explícito (rol con que se hizo la visita) y
---    NO es transitivo del usuario porque refleja el rol AL MOMENTO de la visita.
+--  · nna.dir_actual UNIQUE: la FK sigue dependiendo solo de id_nna; el UNIQUE
+--    no introduce nuevas dependencias funcionales → FNBC se mantiene.
+--  · nna.apodo: atributo simple que depende únicamente de id_nna → FNBC trivial.
+--  · Nuevos atributos en *_lengua: todos dependen de la PK compuesta (id_entidad, id_lengua)
+--    porque describen la relación específica entre esa entidad y esa lengua → FNBC.
+--  · requiere_interprete eliminado de nna_lengua: era transitivamente inferible de
+--    id_nivel_competencia en muchos casos. Se puede derivar en la capa de aplicación.
+--    Su eliminación mejora la calidad de la normalización.
+--  · tutor_lengua / usuario_lengua: tablas puente simétricas. Evita súper-tablas
+--    polimórficas que generarían FKs anulables y violarían el principio de entidad única.
+--  · tutor_discapacidad: misma lógica que tutor_lengua. PK compuesta (id_tutor,
+--    id_tipo_discapacidad); todos los atributos dependen de ella → FNBC.
+--  · bajo_tratamiento / medicamento_actual en nna_discapacidad: dependen de la PK
+--    compuesta (id_nna, id_tipo_discapacidad) → sin violación de FNBC.
+--  · cat_grado_dependencia.descripcion: depende solo de id (PK) → FNBC trivial.
+--  · Trigger: lógica de negocio a nivel motor. No altera la estructura relacional
+--    ni introduce dependencias funcionales nuevas → neutral para FNBC.
 --
 --  HISTORIAL:
 --  v6.4 → FIX cat_grupo_sanguineo VARCHAR(20) + admin + datos extra
 --  v7   → Equipos multidisciplinarios + visitas
+--  v8   → 1:1 dirección · apodo · lenguas universales · discapacidades ampliadas
+--          · síndromes · trigger permisos TS
 -- ============================================================
 
 
@@ -57,16 +77,30 @@ CREATE TABLE cat_tipo_discapacidad (
     nombre  VARCHAR(100)    NOT NULL UNIQUE
 );
 INSERT INTO cat_tipo_discapacidad (nombre) VALUES
-    ('Física'),('Intelectual'),('Sensorial'),('Mental'),('Múltiple');
-COMMENT ON TABLE cat_tipo_discapacidad IS 'Catálogo de tipos de discapacidad según clasificación gubernamental.';
+    ('Física'),('Intelectual'),('Sensorial'),('Mental'),('Múltiple'),
+    -- v8: los síndromes se tratan conceptualmente como discapacidades.
+    -- Se agregan como categoría propia para permitir especificidad en el campo
+    -- descripcion_adicional de las tablas asociativas, sin requerir un catálogo
+    -- de síndromes independiente (FNBC: {id}→{nombre}, sin dependencias parciales).
+    ('Síndrome');
+COMMENT ON TABLE cat_tipo_discapacidad IS 'Catálogo de tipos de discapacidad según clasificación gubernamental. v8: incluye "Síndrome" como categoría, cuya especificidad se registra en descripcion_adicional de la tabla asociativa.';
 
 CREATE TABLE cat_grado_dependencia (
-    id      SERIAL          PRIMARY KEY,
-    nombre  VARCHAR(100)    NOT NULL UNIQUE
+    id          SERIAL          PRIMARY KEY,
+    nombre      VARCHAR(100)    NOT NULL UNIQUE,
+    -- v8: descripción narrativa del grado de dependencia para orientar al profesionista.
+    -- Depende únicamente de id (PK) → FNBC trivial.
+    descripcion TEXT
 );
-INSERT INTO cat_grado_dependencia (nombre) VALUES
-    ('Independiente'),('Requiere Apoyo Moderado'),('Requiere Apoyo Total');
-COMMENT ON TABLE cat_grado_dependencia IS 'Catálogo de grados de dependencia funcional del NNA.';
+INSERT INTO cat_grado_dependencia (nombre, descripcion) VALUES
+    ('Independiente',
+     'La persona realiza todas las actividades de la vida diaria sin asistencia de terceros.'),
+    ('Requiere Apoyo Moderado',
+     'La persona necesita asistencia parcial en algunas actividades cotidianas (movilidad, higiene, comunicación, etc.).'),
+    ('Requiere Apoyo Total',
+     'La persona depende completamente de un tercero para la realización de actividades básicas de la vida diaria.');
+COMMENT ON TABLE  cat_grado_dependencia             IS 'Catálogo de grados de dependencia funcional del NNA o tutor.';
+COMMENT ON COLUMN cat_grado_dependencia.descripcion IS 'v8: Descripción narrativa del grado para orientar al profesionista registrador. Depende solo de la PK → FNBC.';
 
 CREATE TABLE cat_nivel_competencia (
     id      SERIAL          PRIMARY KEY,
@@ -110,7 +144,7 @@ INSERT INTO cat_lengua (nombre) VALUES
     ('Sakapulteko'),('Sayulteco'),('Seri'),('Sipakapense'),('Tarahumara'),('Tarasco Purepecha'),('Teko'),('Tektiteko'),('Tepehua'),('Tepehuano del Norte'),('Tepehuano del Sur'),
     ('Texistepequeño'),('Tlapaneco Mephaa'),('Tlahuica'),('Totonaco'),('Triqui'),('Tseltal'),('Tsotsil'),('Uspanteko'),('Yaqui'),('Zapoteco'),('Zoque'),
     ('Mam guatemalteco'),('Kiche guatemalteco'),('Kaqchikel guatemalteco'),('Garífuna'),('Otra');
-COMMENT ON TABLE cat_lengua IS 'Catálogo de lenguas habladas/señadas por NNA conforme al FUD/LGDNNA.';
+COMMENT ON TABLE cat_lengua IS 'Catálogo de lenguas habladas/señadas por NNA, tutores y usuarios conforme al FUD/LGDNNA.';
 
 CREATE TABLE cat_pais (
     id      SERIAL          PRIMARY KEY,
@@ -206,10 +240,6 @@ INSERT INTO cat_grupo_sanguineo (nombre) VALUES
     ('A+'),('A-'),('B+'),('B-'),('AB+'),('AB-'),('O+'),('O-'),('Bombay'),('Rh nulo'),('Desconocido');
 COMMENT ON TABLE cat_grupo_sanguineo IS 'Catálogo de grupos sanguíneos sistema ABO + factor Rh.';
 
--- ----------------------------------------------------------
---  2N. cat_tipo_visita  ← NUEVO (v7)
---  DF: {id} → {nombre}  |  FNBC automática
--- ----------------------------------------------------------
 CREATE TABLE cat_tipo_visita (
     id      SERIAL          PRIMARY KEY,
     nombre  VARCHAR(100)    NOT NULL UNIQUE
@@ -293,16 +323,9 @@ CREATE INDEX idx_dir_cp        ON direccion(codigo_postal);
 
 
 -- ============================================================
---  FASE 4: EQUIPOS MULTIDISCIPLINARIOS  ← NUEVO (v7)
---  Debe crearse ANTES de usuario_sistema y nna porque ambos
---  la referencian por FK.
+--  FASE 4: EQUIPOS MULTIDISCIPLINARIOS  (v7)
 -- ============================================================
 
--- ----------------------------------------------------------
---  4A. EQUIPO
---  DF: {id_equipo} → {nombre_equipo, descripcion, estado, fecha_creacion}
---  Todos los atributos dependen solo de id_equipo → FNBC.
--- ----------------------------------------------------------
 CREATE TABLE equipo (
     id_equipo       SERIAL          PRIMARY KEY,
     nombre_equipo   VARCHAR(150)    NOT NULL UNIQUE,
@@ -316,7 +339,6 @@ COMMENT ON TABLE  equipo               IS 'v7: Equipos multidisciplinarios. Un e
 COMMENT ON COLUMN equipo.nombre_equipo IS 'Nombre identificador del equipo (ej. Equipo Centro CDMX).';
 COMMENT ON COLUMN equipo.estado        IS 'ACTIVO | INACTIVO. Atributo propio del equipo, NO transitivo.';
 
--- Equipos de ejemplo
 INSERT INTO equipo (nombre_equipo, descripcion, estado) VALUES
     ('Equipo Alfa',  'Equipo multidisciplinario de atención general.',          'ACTIVO'),
     ('Equipo Beta',  'Equipo enfocado en casos de migración y refugio.',        'ACTIVO'),
@@ -325,7 +347,6 @@ INSERT INTO equipo (nombre_equipo, descripcion, estado) VALUES
 
 -- ============================================================
 --  FASE 5: OPERACIÓN DE LA PLATAFORMA
---  usuario_sistema ahora con id_equipo (un profesionista en 1 equipo)
 -- ============================================================
 
 CREATE TABLE usuario_sistema (
@@ -339,7 +360,6 @@ CREATE TABLE usuario_sistema (
     contrasena              VARCHAR(255)    NOT NULL,
     id_rol                  INT             NOT NULL REFERENCES cat_rol_sistema(id)     ON DELETE RESTRICT,
     id_municipio_labora     INT             REFERENCES cat_municipio(id_municipio)      ON DELETE SET NULL,
-    -- v7: un profesionista pertenece a UN SOLO equipo a la vez (1:N equipo→usuario)
     id_equipo               INT             REFERENCES equipo(id_equipo)                ON DELETE SET NULL,
     estado                  VARCHAR(20)     NOT NULL DEFAULT 'ACTIVO',
     fecha_registro          TIMESTAMP       NOT NULL DEFAULT NOW(),
@@ -354,7 +374,6 @@ COMMENT ON COLUMN usuario_sistema.id_equipo IS 'v7: FK a equipo. Un profesionist
 
 -- ============================================================
 --  FASE 6: ENTIDADES CENTRALES
---  nna ahora con id_equipo (un NNA atendido por 1 equipo)
 -- ============================================================
 
 CREATE TABLE tutor (
@@ -375,6 +394,9 @@ CREATE TABLE nna (
     id_nna              SERIAL          PRIMARY KEY,
     folio_nna           VARCHAR(50)     NOT NULL UNIQUE,
     nombre              VARCHAR(100)    NOT NULL,
+    -- v8: apodo para facilitar la construcción de confianza con el NNA.
+    -- Atributo simple que depende únicamente de id_nna → FNBC trivial.
+    apodo               VARCHAR(100),
     prim_ap             VARCHAR(100)    NOT NULL,
     seg_ap              VARCHAR(100),
     fecha_nacimiento    DATE            NOT NULL,
@@ -383,9 +405,11 @@ CREATE TABLE nna (
     id_escolaridad      INT             REFERENCES cat_escolaridad(id)                ON DELETE RESTRICT,
     id_motivo_ingreso   INT             REFERENCES cat_motivo_ingreso(id)             ON DELETE RESTRICT,
     id_grupo_sanguineo  INT             REFERENCES cat_grupo_sanguineo(id)            ON DELETE RESTRICT,
-    -- v7: un NNA es atendido por UN SOLO equipo (1:N equipo→nna)
     id_equipo           INT             REFERENCES equipo(id_equipo)                  ON DELETE SET NULL,
-    dir_actual          INT             REFERENCES direccion(id_dir)                  ON DELETE SET NULL,
+    -- v8: UNIQUE en dir_actual garantiza relación 1:1 estricta con direccion.
+    -- Una dirección solo puede estar asignada a un NNA a la vez.
+    -- La FK sigue dependiendo únicamente de id_nna (PK) → FNBC se mantiene.
+    dir_actual          INT             UNIQUE REFERENCES direccion(id_dir)            ON DELETE SET NULL,
     luga_nac_nna        INT             REFERENCES entidad_federativa(id_ent)         ON DELETE SET NULL,
     situacion_calle     BOOLEAN         NOT NULL DEFAULT FALSE,
     es_migrante         BOOLEAN         NOT NULL DEFAULT FALSE,
@@ -397,12 +421,96 @@ CREATE TABLE nna (
     CONSTRAINT chk_curp_nna      CHECK (curp IS NULL OR LENGTH(TRIM(curp)) = 18),
     CONSTRAINT chk_fecha_nac_nna CHECK (fecha_nacimiento <= CURRENT_DATE)
 );
-COMMENT ON TABLE  nna           IS 'Registro central de NNA conforme al FUD y la LGDNNA.';
-COMMENT ON COLUMN nna.id_equipo IS 'v7: FK a equipo. Un NNA es atendido por un solo equipo (nullable: sin equipo asignado todavía).';
+COMMENT ON TABLE  nna              IS 'Registro central de NNA conforme al FUD y la LGDNNA.';
+COMMENT ON COLUMN nna.apodo        IS 'v8: Nombre o apodo por el que prefiere ser llamado el NNA. Facilita la construcción de confianza en la intervención.';
+COMMENT ON COLUMN nna.dir_actual   IS 'v8: UNIQUE → relación 1:1 estricta con direccion. Una dirección no puede asignarse a más de un NNA simultáneamente.';
+COMMENT ON COLUMN nna.id_equipo    IS 'v7: FK a equipo. Un NNA es atendido por un solo equipo (nullable: sin equipo asignado todavía).';
+COMMENT ON COLUMN nna.registrado_por IS 'UUID del usuario que dio de alta el NNA. El trigger trg_nna_rol_registrador valida que sea Trabajador_Social.';
 
 
 -- ============================================================
---  FASE 7: RELACIONES Y LISTAS MULTIVALORADAS
+--  FASE 7: TRIGGER DE PERMISOS — REGISTRO DE NNA (v8)
+--  Solo un usuario con rol 'Trabajador_Social' puede dar de alta
+--  o modificar el campo registrado_por en la tabla nna.
+--  La validación ocurre a nivel motor (BEFORE INSERT OR UPDATE),
+--  lo que impide inserciones directas vía SQL o herramientas externas.
+-- ============================================================
+
+-- ----------------------------------------------------------
+--  7A. FUNCIÓN DE VALIDACIÓN
+--  Retorna TRIGGER (requerido por PostgreSQL).
+--  Se ejecuta antes de INSERT o UPDATE en nna.
+--  Solo valida cuando NEW.registrado_por no es NULL.
+--  Semántica: registrado_por NULL = NNA sin asignación de registrador aún
+--  (caso de datos migrados o seeds); el trigger no bloquea ese caso.
+-- ----------------------------------------------------------
+CREATE OR REPLACE FUNCTION fn_verificar_rol_trabajador_social()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_rol_nombre VARCHAR(100);
+BEGIN
+    -- Solo se valida cuando se proporciona un registrador
+    IF NEW.registrado_por IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    -- En UPDATE, si registrado_por no cambió, no re-validar (optimización)
+    IF TG_OP = 'UPDATE' AND OLD.registrado_por IS NOT DISTINCT FROM NEW.registrado_por THEN
+        RETURN NEW;
+    END IF;
+
+    -- Obtener el nombre del rol del usuario indicado como registrador
+    SELECT crs.nombre
+    INTO   v_rol_nombre
+    FROM   usuario_sistema  us
+    JOIN   cat_rol_sistema  crs ON crs.id = us.id_rol
+    WHERE  us.id_usuario = NEW.registrado_por
+      AND  us.estado     = 'ACTIVO';
+
+    -- Si el UUID no existe o el usuario está inactivo
+    IF v_rol_nombre IS NULL THEN
+        RAISE EXCEPTION
+            'AURORA-001: El usuario con id % no existe o no está ACTIVO en usuario_sistema.',
+            NEW.registrado_por
+            USING ERRCODE = 'P0001';
+    END IF;
+
+    -- Si el rol no es Trabajador_Social
+    IF v_rol_nombre <> 'Trabajador_Social' THEN
+        RAISE EXCEPTION
+            'AURORA-002: Solo un usuario con rol Trabajador_Social puede registrar NNA. '
+            'Rol detectado: %.',
+            v_rol_nombre
+            USING ERRCODE = 'P0001';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION fn_verificar_rol_trabajador_social() IS
+    'v8: Valida que el usuario en registrado_por tenga rol Trabajador_Social y esté ACTIVO. '
+    'Se dispara BEFORE INSERT OR UPDATE en nna. NULL en registrado_por se permite (seeds/migración).';
+
+-- ----------------------------------------------------------
+--  7B. TRIGGER
+-- ----------------------------------------------------------
+CREATE TRIGGER trg_nna_rol_registrador
+    BEFORE INSERT OR UPDATE OF registrado_por
+    ON nna
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_verificar_rol_trabajador_social();
+
+COMMENT ON TRIGGER trg_nna_rol_registrador ON nna IS
+    'v8: BEFORE INSERT OR UPDATE OF registrado_por. '
+    'Rechaza el registro si el usuario no tiene rol Trabajador_Social o está inactivo. '
+    'El trigger se activa solo cuando registrado_por cambia para evitar re-validaciones innecesarias en UPDATE.';
+
+
+-- ============================================================
+--  FASE 8: RELACIONES Y LISTAS MULTIVALORADAS
 -- ============================================================
 
 CREATE TABLE nna_tutor (
@@ -422,25 +530,110 @@ CREATE TABLE nna_nacionalidad (
 );
 COMMENT ON TABLE nna_nacionalidad IS 'Nacionalidades del NNA; admite doble o múltiple nacionalidad.';
 
+-- ----------------------------------------------------------
+--  8C. nna_discapacidad  — v8: +bajo_tratamiento, +medicamento_actual
+--  PK compuesta (id_nna, id_tipo_discapacidad).
+--  bajo_tratamiento y medicamento_actual describen la relación específica
+--  entre este NNA y esta discapacidad → dependen de la PK completa → FNBC.
+--  El tipo 'Síndrome' de cat_tipo_discapacidad se especifica en
+--  descripcion_adicional (texto libre), evitando proliferación de catálogos.
+-- ----------------------------------------------------------
 CREATE TABLE nna_discapacidad (
     id_nna                     INT     NOT NULL REFERENCES nna(id_nna)               ON DELETE CASCADE,
     id_tipo_discapacidad       INT     NOT NULL REFERENCES cat_tipo_discapacidad(id)  ON DELETE RESTRICT,
     id_grado_dependencia       INT     NOT NULL REFERENCES cat_grado_dependencia(id)  ON DELETE RESTRICT,
     diagnostico_medico_oficial BOOLEAN NOT NULL DEFAULT FALSE,
     descripcion_adicional      TEXT,
+    -- v8: seguimiento clínico de la discapacidad/síndrome
+    bajo_tratamiento           BOOLEAN NOT NULL DEFAULT FALSE,
+    medicamento_actual         TEXT,
     PRIMARY KEY (id_nna, id_tipo_discapacidad)
 );
-COMMENT ON TABLE nna_discapacidad IS 'Discapacidades registradas del NNA.';
+COMMENT ON TABLE  nna_discapacidad                     IS 'Discapacidades y síndromes registrados del NNA. v8: +bajo_tratamiento, +medicamento_actual.';
+COMMENT ON COLUMN nna_discapacidad.bajo_tratamiento    IS 'v8: Indica si el NNA está bajo tratamiento médico activo por esta discapacidad/síndrome.';
+COMMENT ON COLUMN nna_discapacidad.medicamento_actual  IS 'v8: Medicamento(s) actualmente prescritos. Texto libre para máxima flexibilidad clínica.';
+COMMENT ON COLUMN nna_discapacidad.descripcion_adicional IS 'Para tipo "Síndrome", registrar aquí el nombre específico (ej. Síndrome de Down, Síndrome de Rett).';
 
+-- ----------------------------------------------------------
+--  8D. tutor_discapacidad  ← NUEVO (v8)
+--  Espejo simétrico de nna_discapacidad para tutores.
+--  PK compuesta (id_tutor, id_tipo_discapacidad); todos los atributos
+--  dependen de la PK completa → FNBC. No se usa tabla polimórfica
+--  para mantener FKs fuertes y JOINs simples.
+-- ----------------------------------------------------------
+CREATE TABLE tutor_discapacidad (
+    id_tutor                   INT     NOT NULL REFERENCES tutor(id_tutor)            ON DELETE CASCADE,
+    id_tipo_discapacidad       INT     NOT NULL REFERENCES cat_tipo_discapacidad(id)  ON DELETE RESTRICT,
+    id_grado_dependencia       INT     NOT NULL REFERENCES cat_grado_dependencia(id)  ON DELETE RESTRICT,
+    diagnostico_medico_oficial BOOLEAN NOT NULL DEFAULT FALSE,
+    descripcion_adicional      TEXT,
+    bajo_tratamiento           BOOLEAN NOT NULL DEFAULT FALSE,
+    medicamento_actual         TEXT,
+    PRIMARY KEY (id_tutor, id_tipo_discapacidad)
+);
+COMMENT ON TABLE  tutor_discapacidad                     IS 'v8: Discapacidades y síndromes del tutor. Espejo simétrico de nna_discapacidad. Permite registrar si el tutor también tiene condiciones que afectan su capacidad de cuidado.';
+COMMENT ON COLUMN tutor_discapacidad.bajo_tratamiento    IS 'v8: Indica si el tutor está bajo tratamiento médico activo por esta condición.';
+COMMENT ON COLUMN tutor_discapacidad.medicamento_actual  IS 'v8: Medicamento(s) actualmente prescritos al tutor.';
+COMMENT ON COLUMN tutor_discapacidad.descripcion_adicional IS 'Para tipo "Síndrome", registrar el nombre específico del síndrome.';
+
+-- ----------------------------------------------------------
+--  8E. nna_lengua  — v8.1: atributos ampliados + requiere_interprete RESTAURADO
+--  Todos dependen de la PK compuesta (id_nna, id_lengua) → 5FN asegurada.
+-- ----------------------------------------------------------
 CREATE TABLE nna_lengua (
-    id_nna               INT     NOT NULL REFERENCES nna(id_nna)               ON DELETE CASCADE,
-    id_lengua            INT     NOT NULL REFERENCES cat_lengua(id)            ON DELETE RESTRICT,
-    es_preferente        BOOLEAN NOT NULL DEFAULT FALSE,
-    id_nivel_competencia INT     NOT NULL REFERENCES cat_nivel_competencia(id) ON DELETE RESTRICT,
-    requiere_interprete  BOOLEAN NOT NULL DEFAULT FALSE,
+    id_nna               INT         NOT NULL REFERENCES nna(id_nna)               ON DELETE CASCADE,
+    id_lengua            INT         NOT NULL REFERENCES cat_lengua(id)            ON DELETE RESTRICT,
+    es_preferente        BOOLEAN     NOT NULL DEFAULT FALSE,
+    id_nivel_competencia INT         NOT NULL REFERENCES cat_nivel_competencia(id) ON DELETE RESTRICT,
+    requiere_interprete  BOOLEAN     NOT NULL DEFAULT FALSE, -- RESTAURADO: Regla de negocio crítica
+    variante_indigena    VARCHAR(150),
+    autodenominacion     VARCHAR(150),
+    modo_adquisicion     VARCHAR(100),
     PRIMARY KEY (id_nna, id_lengua)
 );
-COMMENT ON TABLE nna_lengua IS 'Lenguas habladas/señadas por el NNA.';
+COMMENT ON TABLE  nna_lengua                    IS 'Lenguas habladas/señadas por el NNA. v8.1: requiere_interprete restaurado junto con los atributos de universalidad.';
+COMMENT ON COLUMN nna_lengua.variante_indigena  IS 'Variante dialectal específica de la lengua indígena (ej. Zapoteco del Istmo, Mixteco de la Costa).';
+COMMENT ON COLUMN nna_lengua.autodenominacion   IS 'Nombre con el que la comunidad hablante denomina su propia lengua (ej. Diidxazá para Zapoteco).';
+COMMENT ON COLUMN nna_lengua.modo_adquisicion   IS 'Forma en que el NNA adquirió la lengua (ej. Lengua materna, Adquirida en comunidad).';
+
+-- ----------------------------------------------------------
+--  8F. tutor_lengua  (v8.1)
+--  Espejo simétrico de nna_lengua para tutores. 
+--  PK compuesta (id_tutor, id_lengua) → 5FN.
+-- ----------------------------------------------------------
+CREATE TABLE tutor_lengua (
+    id_tutor             INT         NOT NULL REFERENCES tutor(id_tutor)           ON DELETE CASCADE,
+    id_lengua            INT         NOT NULL REFERENCES cat_lengua(id)            ON DELETE RESTRICT,
+    es_preferente        BOOLEAN     NOT NULL DEFAULT FALSE,
+    id_nivel_competencia INT         NOT NULL REFERENCES cat_nivel_competencia(id) ON DELETE RESTRICT,
+    requiere_interprete  BOOLEAN     NOT NULL DEFAULT FALSE, -- RESTAURADO: Aplica también para tutores en diligencias
+    variante_indigena    VARCHAR(150),
+    autodenominacion     VARCHAR(150),
+    modo_adquisicion     VARCHAR(100),
+    PRIMARY KEY (id_tutor, id_lengua)
+);
+COMMENT ON TABLE  tutor_lengua                    IS 'Lenguas del tutor/responsable. Espejo simétrico de nna_lengua. Necesario para servicios de interpretación.';
+COMMENT ON COLUMN tutor_lengua.requiere_interprete IS 'Indica si el tutor necesita apoyo de intérprete para esta lengua durante procesos legales/psicológicos.';
+
+-- ----------------------------------------------------------
+--  8G. usuario_lengua  (v8.1)
+--  Espejo de lenguas para usuarios del sistema (los profesionistas).
+--  NOTA: Se incluye requiere_interprete para mantener la estructura universal, 
+--  aunque operativamente un profesionista rara vez lo marcará en "TRUE".
+-- ----------------------------------------------------------
+CREATE TABLE usuario_lengua (
+    id_usuario           UUID        NOT NULL REFERENCES usuario_sistema(id_usuario) ON DELETE CASCADE,
+    id_lengua            INT         NOT NULL REFERENCES cat_lengua(id)              ON DELETE RESTRICT,
+    es_preferente        BOOLEAN     NOT NULL DEFAULT FALSE,
+    id_nivel_competencia INT         NOT NULL REFERENCES cat_nivel_competencia(id)   ON DELETE RESTRICT,
+    requiere_interprete  BOOLEAN     NOT NULL DEFAULT FALSE, 
+    variante_indigena    VARCHAR(150),
+    autodenominacion     VARCHAR(150),
+    modo_adquisicion     VARCHAR(100),
+    PRIMARY KEY (id_usuario, id_lengua)
+);
+COMMENT ON TABLE  usuario_lengua                    IS 'Lenguas del profesionista/usuario del sistema. Permite identificar personal bilingüe.';
+COMMENT ON COLUMN usuario_lengua.modo_adquisicion   IS 'Forma de adquisición de la lengua por el profesionista (ej. Nativa, Aprendida, Certificada).';
 
 CREATE TABLE nna_contacto_adicional (
     id_contacto         SERIAL       PRIMARY KEY,
@@ -463,7 +656,7 @@ COMMENT ON TABLE nna_enfermedad IS 'Relación N:M entre NNA y enfermedades diagn
 
 
 -- ============================================================
---  FASE 8: SEGUIMIENTO MULTIDISCIPLINARIO
+--  FASE 9: SEGUIMIENTO MULTIDISCIPLINARIO
 -- ============================================================
 
 CREATE TABLE expediente_seguimiento (
@@ -480,13 +673,6 @@ CREATE TABLE expediente_seguimiento (
 );
 COMMENT ON TABLE expediente_seguimiento IS 'Registro cronológico de intervenciones. La nota la hace un usuario individual, pero todo su equipo puede verla vía JOIN usuario_sistema.id_equipo = nna.id_equipo.';
 
--- ----------------------------------------------------------
---  8B. VISITA_SEGUIMIENTO  ← NUEVO (v7)
---  Registro de visitas/diligencias en campo.
---  PK atómica id_visita; todos los atributos dependen solo de ella → FNBC.
---  id_rol_ejecutor: rol con el que se realizó la visita (se guarda explícito
---  porque refleja el rol al momento de la visita; no es transitivo del usuario).
--- ----------------------------------------------------------
 CREATE TABLE visita_seguimiento (
     id_visita        UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
     id_nna           INT         NOT NULL REFERENCES nna(id_nna)                ON DELETE CASCADE,
@@ -509,7 +695,7 @@ COMMENT ON COLUMN visita_seguimiento.lugar_visita    IS 'Lugar donde se realizó
 
 
 -- ============================================================
---  FASE 9: DATOS OPERATIVOS INICIALES
+--  FASE 10: DATOS OPERATIVOS INICIALES
 -- ============================================================
 
 UPDATE usuario_sistema
@@ -517,6 +703,7 @@ SET    estado = 'INACTIVO'
 WHERE  id_rol = (SELECT id FROM cat_rol_sistema WHERE nombre = 'Trabajador_Social');
 
 -- Usuario administrador de prueba (contraseña texto plano: Admin2024)
+-- registrado_por es NULL → el trigger no bloquea este seed.
 INSERT INTO usuario_sistema (
     curp, rfc, nombre, apellido_paterno, apellido_materno,
     correo, contrasena, id_rol, estado
@@ -529,28 +716,38 @@ INSERT INTO usuario_sistema (
 
 
 -- ============================================================
---  FASE 10: ÍNDICES DE RENDIMIENTO
+--  FASE 11: ÍNDICES DE RENDIMIENTO
 -- ============================================================
 
 CREATE INDEX idx_usuario_rol        ON usuario_sistema(id_rol);
 CREATE INDEX idx_usuario_estado     ON usuario_sistema(estado);
 CREATE INDEX idx_usuario_mun_lab    ON usuario_sistema(id_municipio_labora);
-CREATE INDEX idx_usuario_equipo     ON usuario_sistema(id_equipo);            -- v7
+CREATE INDEX idx_usuario_equipo     ON usuario_sistema(id_equipo);
 
 CREATE INDEX idx_nna_sexo           ON nna(id_sexo);
 CREATE INDEX idx_nna_escolaridad    ON nna(id_escolaridad);
 CREATE INDEX idx_nna_motivo         ON nna(id_motivo_ingreso);
 CREATE INDEX idx_nna_sangre         ON nna(id_grupo_sanguineo);
-CREATE INDEX idx_nna_equipo         ON nna(id_equipo);                        -- v7
-CREATE INDEX idx_nna_dir_actual     ON nna(dir_actual);
+CREATE INDEX idx_nna_equipo         ON nna(id_equipo);
+-- nna.dir_actual ya tiene índice implícito por la constraint UNIQUE (v8)
 CREATE INDEX idx_nna_luga_nac       ON nna(luga_nac_nna);
 CREATE INDEX idx_nna_fecha_nac      ON nna(fecha_nacimiento);
 CREATE INDEX idx_nna_vulnerabilidad ON nna(situacion_calle, es_migrante, es_refugiado, poblacion_indigena);
+CREATE INDEX idx_nna_registrado_por ON nna(registrado_por);  -- v8: para auditoría por registrador
 
 CREATE INDEX idx_nna_tutor_tutor    ON nna_tutor(id_tutor);
 CREATE INDEX idx_nna_tutor_parent   ON nna_tutor(id_parentesco);
 CREATE INDEX idx_nna_nac_pais       ON nna_nacionalidad(id_pais);
+
+-- Lenguas (v8: tres tablas)
 CREATE INDEX idx_nna_lengua_len     ON nna_lengua(id_lengua);
+CREATE INDEX idx_tutor_lengua_len   ON tutor_lengua(id_lengua);
+CREATE INDEX idx_usr_lengua_len     ON usuario_lengua(id_lengua);
+
+-- Discapacidades (v8: dos tablas)
+CREATE INDEX idx_nna_disc_tipo      ON nna_discapacidad(id_tipo_discapacidad);
+CREATE INDEX idx_tutor_disc_tipo    ON tutor_discapacidad(id_tipo_discapacidad);
+
 CREATE INDEX idx_nna_enf_enf        ON nna_enfermedad(id_enfermedad);
 CREATE INDEX idx_nna_cont_tipo      ON nna_contacto_adicional(id_tipo_contacto);
 CREATE INDEX idx_nna_cont_nna       ON nna_contacto_adicional(id_nna);
@@ -560,7 +757,6 @@ CREATE INDEX idx_exp_usuario        ON expediente_seguimiento(id_usuario);
 CREATE INDEX idx_exp_fecha          ON expediente_seguimiento(fecha_atencion DESC);
 CREATE INDEX idx_exp_area           ON expediente_seguimiento(id_area_atencion);
 
--- v7: índices de visitas
 CREATE INDEX idx_visita_nna         ON visita_seguimiento(id_nna);
 CREATE INDEX idx_visita_usuario     ON visita_seguimiento(id_usuario);
 CREATE INDEX idx_visita_tipo        ON visita_seguimiento(id_tipo_visita);
@@ -571,42 +767,54 @@ CREATE INDEX idx_visita_fecha_prog  ON visita_seguimiento(fecha_programada);
 
 
 -- ============================================================
---  RESUMEN DE RELACIONES FNBC — 29 TABLAS (v7)
+--  RESUMEN DE RELACIONES FNBC — 34 TABLAS (v8)
 -- ============================================================
 --
---  CATÁLOGOS (14)  +cat_tipo_visita
---    cat_rol_sistema, cat_sexo, cat_tipo_discapacidad, cat_grado_dependencia,
---    cat_nivel_competencia, cat_parentesco, cat_lengua, cat_pais, cat_escolaridad,
---    cat_motivo_ingreso, cat_enfermedad, cat_tipo_contacto, cat_grupo_sanguineo,
---    cat_tipo_visita *v7*
+--  CATÁLOGOS (14)
+--    cat_rol_sistema, cat_sexo, cat_tipo_discapacidad [+Síndrome v8],
+--    cat_grado_dependencia [+descripcion v8], cat_nivel_competencia,
+--    cat_parentesco, cat_lengua, cat_pais, cat_escolaridad,
+--    cat_motivo_ingreso, cat_enfermedad, cat_tipo_contacto,
+--    cat_grupo_sanguineo, cat_tipo_visita
 --
 --  GEOGRAFÍA HÍBRIDA (3)
 --    entidad_federativa, cat_municipio, direccion
 --
---  EQUIPOS (1) *v7*
+--  EQUIPOS (1)
 --    equipo ( id_equipo, nombre_equipo, descripcion, estado, fecha_creacion )
 --
 --  PLATAFORMA (1)
---    usuario_sistema ( ..., id_equipo *v7*, ... )
+--    usuario_sistema ( ..., id_equipo, ... )
 --
 --  ENTIDADES CENTRALES (2)
 --    tutor
---    nna ( ..., id_equipo *v7*, ... )
+--    nna ( ..., apodo [v8], dir_actual UNIQUE [v8], id_equipo, registrado_por [trigger v8], ... )
 --
---  MULTIVALORADAS (6)
---    nna_tutor, nna_nacionalidad, nna_discapacidad,
---    nna_lengua, nna_contacto_adicional, nna_enfermedad
+--  MULTIVALORADAS — LENGUAS (3)  [v8: tablas espejo]
+--    nna_lengua    [+variante_indigena, +autodenominacion, +modo_adquisicion v8]
+--    tutor_lengua  [NUEVO v8]
+--    usuario_lengua [NUEVO v8]
 --
---  SEGUIMIENTO (2)  +visita_seguimiento
+--  MULTIVALORADAS — DISCAPACIDADES (2)  [v8: ampliadas + tabla espejo]
+--    nna_discapacidad   [+bajo_tratamiento, +medicamento_actual v8]
+--    tutor_discapacidad [NUEVO v8]
+--
+--  MULTIVALORADAS — OTRAS (4)
+--    nna_tutor, nna_nacionalidad, nna_contacto_adicional, nna_enfermedad
+--
+--  SEGUIMIENTO (2)
 --    expediente_seguimiento
---    visita_seguimiento *v7* ( id_visita, id_nna, id_usuario, id_rol_ejecutor,
---                              id_tipo_visita, lugar_visita, fecha_programada,
---                              fecha_realizada, estado_visita, objetivo, resultado )
+--    visita_seguimiento
 --
---  RELACIONES DE EQUIPO (1:N, sin tabla puente → FNBC):
+--  LÓGICA DE NEGOCIO (1)  [v8]
+--    fn_verificar_rol_trabajador_social()  → función TRIGGER
+--    trg_nna_rol_registrador               → BEFORE INSERT OR UPDATE OF registrado_por ON nna
+--
+--  RELACIONES CLAVE:
+--    nna.dir_actual UNIQUE → 1:1 estricta entre nna y direccion  [v8]
 --    equipo 1 ── N usuario_sistema   (usuario_sistema.id_equipo)
 --    equipo 1 ── N nna               (nna.id_equipo)
 --
 -- ============================================================
---  FIN DEL SCRIPT — PROYECTO AURORA v7 · FNBC · EQUIPOS + VISITAS
+--  FIN DEL SCRIPT — PROYECTO AURORA v8 · FNBC · 34 TABLAS
 -- ============================================================
