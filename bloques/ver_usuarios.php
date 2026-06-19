@@ -201,7 +201,7 @@ try {
                         <strong>
                             <?= htmlspecialchars($u['nombre_completo']) ?>
                             <?php if (!empty($u['equipo'])): ?>
-                                <span class="tag-equipo">🏥 <?= htmlspecialchars($u['equipo']) ?></span>
+                                <span class="tag-equipo"><?= htmlspecialchars($u['equipo']) ?></span>
                             <?php endif; ?>
                             <br><small style="color: #666; font-weight: normal;">CURP: <?= htmlspecialchars($u['curp']) ?></small>
                         </strong>
@@ -219,7 +219,7 @@ try {
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="curp" value="<?= htmlspecialchars($u['curp']) ?>">
                                     <button type="submit" class="btn-borrar" onclick="return confirm('¿Estás seguro de que deseas eliminar este usuario y todos sus datos? Esta acción no se puede deshacer.');">
-                                        🗑️ Borrar 
+                                        Borrar 
                                     </button> 
                                 </form> 
                             <?php endif; ?>

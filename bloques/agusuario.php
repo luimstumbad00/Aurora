@@ -64,7 +64,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $contrasena = $curp; // Contraseña temporal = CURP
 
     if (!$id_rol) {
-        $mensaje = "Debes seleccionar un rol ⚠️";
+        $mensaje = "Debes seleccionar un rol ";
         $tipoMensaje = "error";
     } else {
         try {
@@ -99,17 +99,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $err = $e->getMessage();
 
             if (strpos($err, 'usuario_sistema_curp_key') !== false) {
-                $mensaje = "La CURP ya está registrada ⚠️";
+                $mensaje = "La CURP ya está registrada ";
             } elseif (strpos($err, 'usuario_sistema_rfc_key') !== false) {
-                $mensaje = "El RFC ya está registrado ⚠️";
+                $mensaje = "El RFC ya está registrado ";
             } elseif (strpos($err, 'usuario_sistema_correo_key') !== false) {
-                $mensaje = "El correo electrónico ya está registrado ⚠️";
+                $mensaje = "El correo electrónico ya está registrado ";
             } elseif (strpos($err, 'chk_curp_usuario') !== false) {
-                $mensaje = "La CURP debe tener exactamente 18 caracteres ⚠️";
+                $mensaje = "La CURP debe tener exactamente 18 caracteres ";
             } elseif (strpos($err, 'chk_correo_usuario') !== false) {
-                $mensaje = "El formato del correo no es válido ⚠️";
+                $mensaje = "El formato del correo no es válido ";
             } else {
-                $mensaje = "Error al crear usuario ❌";
+                $mensaje = "Error al crear usuario ";
             }
             $tipoMensaje = "error";
         }
@@ -207,7 +207,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </select>
 
         <!-- v7: Equipo multidisciplinario -->
-        <label for="id_equipo">🏥 Equipo Multidisciplinario (Opcional):</label>
+        <label for="id_equipo"> Equipo Multidisciplinario (Opcional):</label>
         <select id="id_equipo" name="id_equipo">
             <option value="" selected>SIN EQUIPO</option>
             <?php foreach ($equipos as $eq): ?>

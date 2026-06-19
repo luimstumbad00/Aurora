@@ -137,7 +137,7 @@ try {
                         <td><strong><?= htmlspecialchars($row['tutor_curp'] ?? 'Sin CURP') ?></strong></td>
                         <td>
                             <?= htmlspecialchars(trim($row['tutor_nom'] . " " . $row['tutor_ap'] . " " . ($row['tutor_am'] ?? ''))) ?>
-                            <?= ($row['es_adulto_mayor'] == 't') ? '<br><span class="adulto-mayor">👴 ADULTO MAYOR</span>' : '' ?>
+                            <?= ($row['es_adulto_mayor'] == 't') ? '<br><span class="adulto-mayor">ADULTO MAYOR</span>' : '' ?>
                         </td>
                         <td>
                             📞 <?= htmlspecialchars($row['telefono'] ?? 'N/A') ?><br>

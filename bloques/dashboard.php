@@ -174,31 +174,31 @@ try {
 
         <?php if (isset($_GET['error']) && $_GET['error'] == 'acceso_denegado'): ?>
             <div style="background-color:#f8d7da;color:#721c24;padding:10px 15px;border-radius:8px;font-weight:500;font-size:14px;">
-                ⚠️ Acceso denegado a esa sección.
+                 Acceso denegado a esa sección.
             </div>
         <?php endif; ?>
     </div>
 
     <div class="nav-grid">
         <a href="mi_cuenta.php"    class="nav-item" style="color:#f39c12;">⚙️ Mi Cuenta</a>
-        <a href="ver_usuarios.php" class="nav-item">👥 Ver Usuarios</a>
-        <a href="ver_nnas.php"     class="nav-item">👶 Ver NNA's</a>
+        <a href="ver_usuarios.php" class="nav-item">Ver Usuarios</a>
+        <a href="ver_nnas.php"     class="nav-item">Ver NNA's</a>
 
         <?php if ($rol === 'Administrador'): ?>
-            <a href="agusuario.php"        class="nav-item">➕ Agregar Usuario</a>
-            <a href="modificar_usuario.php" class="nav-item">✏️ Editar Usuario</a>
-            <a href="agregar_nna.php"      class="nav-item">➕ Agregar NNA</a>
-            <a href="ver_tutores.php"      class="nav-item">👨‍👩‍👧 Ver Tutores</a>
-            <a href="asignar_tutor.php"    class="nav-item">🔗 Agregar Tutor</a>
-            <a href="ver_equipos.php" class="nav-item">🏥 Equipos</a>
+            <a href="agusuario.php"        class="nav-item"> Agregar Usuario</a>
+            <a href="modificar_usuario.php" class="nav-item"> Editar Usuario</a>
+            <a href="agregar_nna.php"      class="nav-item"> Agregar NNA</a>
+            <a href="ver_tutores.php"      class="nav-item"> Ver Tutores</a>
+            <a href="asignar_tutor.php"    class="nav-item"> Agregar Tutor</a>
+            <a href="ver_equipos.php" class="nav-item"> Equipos</a>
         <?php endif; ?>
 
-        <a href="logout.php" class="nav-item logout">🚪 Cerrar Sesión</a>
+        <a href="logout.php" class="nav-item logout"> Cerrar Sesión</a>
     </div>
 
     <!-- ===== MIS CASOS (Seguimiento multidisciplinario) ===== -->
     <div class="casos-card">
-        <h3>📂 Mis Casos</h3>
+        <h3> Mis Casos</h3>
         <?php if (count($mis_casos) > 0): ?>
             <?php foreach ($mis_casos as $c): ?>
                 <div class="caso-row">

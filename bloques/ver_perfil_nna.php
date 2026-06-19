@@ -11,11 +11,11 @@ $curp = $_GET['curp'] ?? '';
 if (empty($curp)) die("Error: CURP no proporcionada.");
 
 // ============================================================
-//  CONSULTA PRINCIPAL
+//  CONSULTA PRINCIPAL (v8: +apodo)
 // ============================================================
 $query = "
     SELECT
-        n.id_nna, n.folio_nna, n.curp, n.nombre,
+        n.id_nna, n.folio_nna, n.curp, n.nombre, n.apodo,
         n.prim_ap AS apellido_paterno, n.seg_ap AS apellido_materno,
         n.fecha_nacimiento,
         s.nombre            AS sexo,
@@ -58,9 +58,7 @@ try {
 if (!$nna) die("NNA no encontrado en el sistema Aurora.");
 $id_nna = $nna['id_nna'];
 
-// ============================================================
-//  TUTORES
-// ============================================================
+// TUTORES
 $tutores = [];
 try {
     $stmtT = $pdo->prepare("
@@ -76,13 +74,12 @@ try {
     $tutores = $stmtT->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { $tutores = []; }
 
-// ============================================================
-//  LENGUAS
-// ============================================================
+// LENGUAS (v8: +variante, autodenominacion, modo)
 $lenguas = [];
 try {
     $stmtL = $pdo->prepare("
-        SELECT cl.nombre AS lengua, cnc.nombre AS nivel, nl.es_preferente, nl.requiere_interprete
+        SELECT cl.nombre AS lengua, cnc.nombre AS nivel, nl.es_preferente, nl.requiere_interprete,
+               nl.variante_indigena, nl.autodenominacion, nl.modo_adquisicion
         FROM nna_lengua nl
         JOIN cat_lengua cl ON cl.id = nl.id_lengua
         JOIN cat_nivel_competencia cnc ON cnc.id = nl.id_nivel_competencia
@@ -92,13 +89,12 @@ try {
     $lenguas = $stmtL->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { $lenguas = []; }
 
-// ============================================================
-//  DISCAPACIDADES
-// ============================================================
+// DISCAPACIDADES (v8: +bajo_tratamiento, +medicamento_actual)
 $discapacidades = [];
 try {
     $stmtD = $pdo->prepare("
-        SELECT ctd.nombre AS tipo, cgd.nombre AS grado, nd.diagnostico_medico_oficial, nd.descripcion_adicional
+        SELECT ctd.nombre AS tipo, cgd.nombre AS grado, nd.diagnostico_medico_oficial,
+               nd.descripcion_adicional, nd.bajo_tratamiento, nd.medicamento_actual
         FROM nna_discapacidad nd
         JOIN cat_tipo_discapacidad ctd ON ctd.id = nd.id_tipo_discapacidad
         JOIN cat_grado_dependencia cgd ON cgd.id = nd.id_grado_dependencia
@@ -108,9 +104,7 @@ try {
     $discapacidades = $stmtD->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { $discapacidades = []; }
 
-// ============================================================
-//  ENFERMEDADES
-// ============================================================
+// ENFERMEDADES
 $enfermedades = [];
 try {
     $stmtE = $pdo->prepare("
@@ -123,9 +117,7 @@ try {
     $enfermedades = $stmtE->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { $enfermedades = []; }
 
-// ============================================================
-//  CONTACTOS
-// ============================================================
+// CONTACTOS
 $contactos = [];
 try {
     $stmtC = $pdo->prepare("
@@ -138,9 +130,7 @@ try {
     $contactos = $stmtC->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { $contactos = []; }
 
-// ============================================================
-//  MIEMBROS DEL EQUIPO
-// ============================================================
+// MIEMBROS DEL EQUIPO
 $miembros_equipo = [];
 if ($nna['equipo']) {
     try {
@@ -197,8 +187,10 @@ function bool_badge($val, $label) {
         .tag-diag   { background:#c0392b; color:#fff; font-size:10px; padding:2px 6px; border-radius:3px; margin-left:5px; }
         .tag-trat   { background:#16a085; color:#fff; font-size:10px; padding:2px 6px; border-radius:3px; margin-left:5px; }
         .tag-equipo { background:#8e44ad; color:#fff; font-size:11px; padding:3px 8px; border-radius:4px; }
+        .tag-variante { background:#2c3e50; color:#fff; font-size:10px; padding:2px 6px; border-radius:3px; margin-left:5px; }
         .sin-dato   { color:#95a5a6; font-style:italic; font-size:13px; }
         a.btn-back  { color:#34495e; font-weight:700; text-decoration:none; font-size:14px; }
+        .apodo-display { color:#8e44ad; font-weight:600; font-size:13px; }
     </style>
 </head>
 <body>
@@ -208,7 +200,7 @@ function bool_badge($val, $label) {
     <div class="card">
         <div class="header-perfil">
             <div>
-                <h1>📋 Expediente del NNA</h1>
+                <h1>Expediente del NNA</h1>
                 <div class="folio">Folio: <strong><?= htmlspecialchars($nna['folio_nna']) ?></strong>
                     &nbsp;|&nbsp; Registro: <?= htmlspecialchars($nna['fecha_registro']) ?></div>
             </div>
@@ -223,11 +215,13 @@ function bool_badge($val, $label) {
         <a href="ver_nnas.php" class="btn-back">⬅ Volver a la lista</a>
     </div>
 
-    <!-- IDENTIDAD -->
+    <!-- IDENTIDAD (v8: +apodo) -->
     <div class="card">
         <div class="seccion-titulo">👤 Datos de Identidad</div>
         <div class="grid-datos">
             <div class="dato-box"><label>Nombre Completo</label><span><?= htmlspecialchars(trim($nna['nombre'].' '.$nna['apellido_paterno'].' '.($nna['apellido_materno']??''))) ?></span></div>
+            <div class="dato-box"><label>😊 Apodo / Le gusta que le llamen</label>
+                <span class="apodo-display"><?= htmlspecialchars($nna['apodo'] ?? 'No registrado') ?></span></div>
             <div class="dato-box"><label>CURP</label><span><?= htmlspecialchars($nna['curp'] ?? 'No registrada') ?></span></div>
             <div class="dato-box"><label>Fecha de Nacimiento</label><span><?= htmlspecialchars($nna['fecha_nacimiento']) ?></span></div>
             <div class="dato-box"><label>Sexo</label><span><?= htmlspecialchars(strtoupper($nna['sexo'] ?? 'No especificado')) ?></span></div>
@@ -241,7 +235,7 @@ function bool_badge($val, $label) {
 
     <!-- EQUIPO -->
     <div class="card">
-        <div class="seccion-titulo">🏥 Equipo Multidisciplinario</div>
+        <div class="seccion-titulo"> Equipo Multidisciplinario</div>
         <?php if ($nna['equipo']): ?>
             <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
                 <span class="tag-equipo"><?= htmlspecialchars(strtoupper($nna['equipo'])) ?></span>
@@ -270,7 +264,7 @@ function bool_badge($val, $label) {
 
     <!-- VULNERABILIDAD -->
     <div class="card">
-        <div class="seccion-titulo">⚠️ Indicadores de Vulnerabilidad</div>
+        <div class="seccion-titulo">Indicadores de Vulnerabilidad</div>
         <div style="display:flex; flex-wrap:wrap; gap:8px; padding:5px 0;">
             <?= bool_badge($nna['situacion_calle'],    'Situación de Calle') ?>
             <?= bool_badge($nna['es_migrante'],        'Migrante') ?>
@@ -281,7 +275,7 @@ function bool_badge($val, $label) {
 
     <!-- DOMICILIO -->
     <div class="card">
-        <div class="seccion-titulo">🏠 Domicilio Actual</div>
+        <div class="seccion-titulo">Domicilio Actual</div>
         <div class="grid-datos">
             <div class="dato-box"><label>Calle</label><span><?= htmlspecialchars($nna['calle'] ?? 'No registrado') ?></span></div>
             <div class="dato-box"><label>Núm. Exterior</label><span><?= htmlspecialchars($nna['num_ext'] ?? 'S/N') ?></span></div>
@@ -320,20 +314,30 @@ function bool_badge($val, $label) {
         <?php endif; ?>
     </div>
 
-    <!-- LENGUAS -->
+    <!-- LENGUAS (v8: +variante, autodenominación, modo) -->
     <div class="card">
         <div class="seccion-titulo">🗣️ Lenguas</div>
         <?php if (count($lenguas) > 0): ?>
             <table class="mini">
-                <thead><tr><th>Lengua</th><th>Nivel</th><th>Indicadores</th></tr></thead>
+                <thead><tr><th>Lengua</th><th>Nivel</th><th>Variante / Autodenominación</th><th>Modo</th><th>Indicadores</th></tr></thead>
                 <tbody>
                     <?php foreach ($lenguas as $l): ?>
                         <tr>
                             <td><?= htmlspecialchars($l['lengua']) ?></td>
                             <td><?= htmlspecialchars($l['nivel']) ?></td>
                             <td>
+                                <?php if (!empty($l['variante_indigena'])): ?>
+                                    <span class="tag-variante"><?= htmlspecialchars($l['variante_indigena']) ?></span>
+                                <?php endif; ?>
+                                <?php if (!empty($l['autodenominacion'])): ?>
+                                    <br><small style="color:#7f8c8d;">Auto: <?= htmlspecialchars($l['autodenominacion']) ?></small>
+                                <?php endif; ?>
+                                <?php if (empty($l['variante_indigena']) && empty($l['autodenominacion'])): ?>—<?php endif; ?>
+                            </td>
+                            <td><?= htmlspecialchars($l['modo_adquisicion'] ?? '—') ?></td>
+                            <td>
                                 <?php if ($l['es_preferente']==='t'): ?><span class="tag-pref">PREFERENTE</span><?php endif; ?>
-                                <?php if ($l['requiere_interprete']==='t'): ?><span class="tag-inter">REQUIERE INTÉRPRETE</span><?php endif; ?>
+                                <?php if ($l['requiere_interprete']==='t'): ?><span class="tag-inter">INTÉRPRETE</span><?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -344,18 +348,20 @@ function bool_badge($val, $label) {
         <?php endif; ?>
     </div>
 
-    <!-- DISCAPACIDADES -->
+    <!-- DISCAPACIDADES (v8: +tratamiento, +medicamento) -->
     <div class="card">
-        <div class="seccion-titulo">♿ Discapacidades</div>
+        <div class="seccion-titulo">♿ Discapacidades / Síndromes</div>
         <?php if (count($discapacidades) > 0): ?>
             <table class="mini">
-                <thead><tr><th>Tipo</th><th>Grado</th><th>Diagnóstico</th><th>Descripción</th></tr></thead>
+                <thead><tr><th>Tipo</th><th>Grado</th><th>Diagnóstico</th><th>Tratamiento</th><th>Medicamento</th><th>Descripción</th></tr></thead>
                 <tbody>
                     <?php foreach ($discapacidades as $d): ?>
                         <tr>
                             <td><?= htmlspecialchars($d['tipo']) ?></td>
                             <td><?= htmlspecialchars($d['grado']) ?></td>
                             <td><?= $d['diagnostico_medico_oficial']==='t' ? '<span class="tag-diag">SÍ</span>' : 'No' ?></td>
+                            <td><?= $d['bajo_tratamiento']==='t' ? '<span class="tag-trat">EN TRATAMIENTO</span>' : 'No' ?></td>
+                            <td><?= htmlspecialchars($d['medicamento_actual'] ?? '—') ?></td>
                             <td><?= htmlspecialchars($d['descripcion_adicional'] ?? '—') ?></td>
                         </tr>
                     <?php endforeach; ?>

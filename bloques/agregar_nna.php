@@ -7,7 +7,7 @@ if (!isset($_SESSION['usuario'])) {
 }  
 
 $rolActual = $_SESSION['usuario']['rol'];  
-if ($rolActual !== 'Administrador') {  
+if ($rolActual !== 'Administrador' && $rolActual !== 'Trabajador_Social') {  
     header("Location: dashboard.php?error=acceso_denegado");  
     exit();  
 }  
@@ -25,9 +25,9 @@ if (isset($_GET['status']) && $_GET['status'] === 'success') {
 // ============================================================
 //  Cargar TODOS los catálogos
 // ============================================================
-$sexos        = $estados = $municipios = $paises  = [];
-$escolaridades = $grupos_sanguineos = $motivos   = [];
-$lenguas      = $niveles = $tipos_disc = $grados  = [];
+$sexos = $estados = $municipios = $paises = [];
+$escolaridades = $grupos_sanguineos = $motivos = [];
+$lenguas = $niveles = $tipos_disc = $grados = [];
 $tipos_contacto = [];
 $equipos = [];
 
@@ -63,6 +63,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // --- Datos personales ---
     $curp            = strtoupper(trim($_POST['curp']       ?? ''));
     $nombres         = strtoupper(trim($_POST['nombres']    ?? ''));
+    $apodo           = trim($_POST['apodo'] ?? '');  // v8
     $apellido_p      = strtoupper(trim($_POST['apellido_p'] ?? ''));
     $apellido_m      = !empty($_POST['apellido_m']) ? strtoupper(trim($_POST['apellido_m'])) : null;
     $nacimiento      = $_POST['nacimiento'] ?? '';
@@ -88,16 +89,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $es_refugiado       = ($_POST['refugiado']        ?? '') === 'Si';
     $poblacion_indigena = ($_POST['pob_indigena']     ?? '') === 'Si';
 
-    // --- Lenguas (múltiples) ---
-    $lenguas_ids    = $_POST['lengua_id']    ?? [];
-    $lenguas_nivel  = $_POST['lengua_nivel'] ?? [];
-    $lenguas_pref   = $_POST['lengua_pref']  ?? [];
-    $lenguas_interp = $_POST['lengua_interp']?? [];
+    // --- Lenguas (múltiples) — v8: +variante, autodenominacion, modo ---
+    $lenguas_ids      = $_POST['lengua_id']       ?? [];
+    $lenguas_nivel    = $_POST['lengua_nivel']    ?? [];
+    $lenguas_pref     = $_POST['lengua_pref']     ?? [];
+    $lenguas_interp   = $_POST['lengua_interp']   ?? [];
+    $lenguas_variante = $_POST['lengua_variante'] ?? [];
+    $lenguas_autoden  = $_POST['lengua_autoden']  ?? [];
+    $lenguas_modo     = $_POST['lengua_modo']     ?? [];
 
-    // --- Discapacidades (múltiples) ---
+    // --- Discapacidades (múltiples) — v8: +bajo_tratamiento, +medicamento ---
     $disc_tipo  = $_POST['disc_tipo']  ?? [];
     $disc_grado = $_POST['disc_grado'] ?? [];
     $disc_diag  = $_POST['disc_diag']  ?? [];
+    $disc_trat  = $_POST['disc_trat']  ?? [];
+    $disc_med   = $_POST['disc_med']   ?? [];
 
     // --- Contactos adicionales (múltiples) ---
     $cont_tipo  = $_POST['cont_tipo']  ?? [];
@@ -124,8 +130,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 RETURNING id_dir
             ");
             $stmtDir->execute([
-                ':calle'        => $calle      !== '' ? $calle    : null,
-                ':num_ext'      => $num_ext    !== '' ? $num_ext  : null,
+                ':calle'        => $calle   !== '' ? $calle   : null,
+                ':num_ext'      => $num_ext !== '' ? $num_ext : null,
                 ':num_int'      => $num_int,
                 ':colonia'      => $colonia,
                 ':cp'           => $cp,
@@ -133,18 +139,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             ]);
             $id_dir = $stmtDir->fetchColumn();
 
-            // PASO 2: Insertar NNA
+            // PASO 2: Insertar NNA (v8: +apodo)
             $folio = 'NNA-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
 
             $stmtNna = $pdo->prepare("
                 INSERT INTO nna (
-                    folio_nna, nombre, prim_ap, seg_ap, fecha_nacimiento, curp,
+                    folio_nna, nombre, apodo, prim_ap, seg_ap, fecha_nacimiento, curp,
                     id_sexo, id_escolaridad, id_motivo_ingreso, id_grupo_sanguineo,
                     id_equipo, dir_actual, luga_nac_nna,
                     situacion_calle, es_migrante, es_refugiado, poblacion_indigena,
                     registrado_por
                 ) VALUES (
-                    :folio, :nombre, :prim_ap, :seg_ap, :fnac, :curp,
+                    :folio, :nombre, :apodo, :prim_ap, :seg_ap, :fnac, :curp,
                     :id_sexo, :id_escolaridad, :id_motivo, :id_grupo_sang,
                     :id_equipo, :dir_actual, :luga_nac,
                     :sit_calle, :migrante, :refugiado, :indigena,
@@ -154,6 +160,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $stmtNna->execute([
                 ':folio'          => $folio,
                 ':nombre'         => $nombres,
+                ':apodo'          => $apodo !== '' ? $apodo : null,
                 ':prim_ap'        => $apellido_p,
                 ':seg_ap'         => $apellido_m,
                 ':fnac'           => $nacimiento,
@@ -179,10 +186,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     ->execute([':id_nna' => $id_nna, ':id_pais' => $id_pais]);
             }
 
-            // PASO 4: Lenguas
+            // PASO 4: Lenguas (v8: +variante, autodenominacion, modo)
             $stmtLen = $pdo->prepare("
-                INSERT INTO nna_lengua (id_nna, id_lengua, es_preferente, id_nivel_competencia, requiere_interprete)
-                VALUES (:id_nna, :id_lengua, :es_pref, :id_nivel, :req_interp)
+                INSERT INTO nna_lengua (id_nna, id_lengua, es_preferente, id_nivel_competencia, requiere_interprete,
+                                        variante_indigena, autodenominacion, modo_adquisicion)
+                VALUES (:id_nna, :id_lengua, :es_pref, :id_nivel, :req_interp,
+                        :variante, :autoden, :modo)
             ");
             foreach ($lenguas_ids as $i => $id_lengua) {
                 if (empty($id_lengua)) continue;
@@ -192,13 +201,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     ':es_pref'    => isset($lenguas_pref[$i])   ? 'true' : 'false',
                     ':id_nivel'   => !empty($lenguas_nivel[$i]) ? (int)$lenguas_nivel[$i] : 1,
                     ':req_interp' => isset($lenguas_interp[$i]) ? 'true' : 'false',
+                    ':variante'   => !empty($lenguas_variante[$i]) ? trim($lenguas_variante[$i]) : null,
+                    ':autoden'    => !empty($lenguas_autoden[$i])  ? trim($lenguas_autoden[$i])  : null,
+                    ':modo'       => !empty($lenguas_modo[$i])     ? trim($lenguas_modo[$i])     : null,
                 ]);
             }
 
-            // PASO 5: Discapacidades
+            // PASO 5: Discapacidades (v8: +bajo_tratamiento, +medicamento)
             $stmtDisc = $pdo->prepare("
-                INSERT INTO nna_discapacidad (id_nna, id_tipo_discapacidad, id_grado_dependencia, diagnostico_medico_oficial)
-                VALUES (:id_nna, :id_tipo, :id_grado, :diag)
+                INSERT INTO nna_discapacidad (id_nna, id_tipo_discapacidad, id_grado_dependencia,
+                                              diagnostico_medico_oficial, bajo_tratamiento, medicamento_actual)
+                VALUES (:id_nna, :id_tipo, :id_grado, :diag, :trat, :med)
             ");
             foreach ($disc_tipo as $i => $id_tipo) {
                 if (empty($id_tipo)) continue;
@@ -207,6 +220,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     ':id_tipo' => (int)$id_tipo,
                     ':id_grado'=> !empty($disc_grado[$i]) ? (int)$disc_grado[$i] : 1,
                     ':diag'    => isset($disc_diag[$i])   ? 'true' : 'false',
+                    ':trat'    => isset($disc_trat[$i])   ? 'true' : 'false',
+                    ':med'     => !empty($disc_med[$i])   ? trim($disc_med[$i])  : null,
                 ]);
             }
 
@@ -232,9 +247,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         } catch (PDOException $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             $err = $e->getMessage();
-            if     (strpos($err, 'nna_curp_key')       !== false) $mensaje = "La CURP ya está registrada ⚠️";
-            elseif (strpos($err, 'chk_curp_nna')       !== false) $mensaje = "La CURP debe tener 18 caracteres ⚠️";
-            elseif (strpos($err, 'chk_codigo_postal')  !== false) $mensaje = "El Código Postal no es válido ⚠️";
+            // v8: errores del trigger
+            if     (strpos($err, 'AURORA-001') !== false) $mensaje = "El usuario registrador no existe o no está activo ⚠️";
+            elseif (strpos($err, 'AURORA-002') !== false) $mensaje = "Solo un Trabajador Social puede registrar NNA. Tu rol actual no tiene permiso ⚠️";
+            elseif (strpos($err, 'nna_curp_key')      !== false) $mensaje = "La CURP ya está registrada ⚠️";
+            elseif (strpos($err, 'chk_curp_nna')      !== false) $mensaje = "La CURP debe tener 18 caracteres ⚠️";
+            elseif (strpos($err, 'chk_codigo_postal') !== false) $mensaje = "El Código Postal no es válido ⚠️";
+            elseif (strpos($err, 'nna_dir_actual_key') !== false) $mensaje = "Esa dirección ya está asignada a otro NNA ⚠️";
             else                                                    $mensaje = "Error al registrar al NNA ❌ " . $err;
             $tipoMensaje = "error";
         }
@@ -253,8 +272,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         h1 { color:#2c3e50; margin-bottom:5px; }
         h3 { color:#2980b9; margin:25px 0 10px; border-bottom:2px solid #eee; padding-bottom:6px; }
         label { display:block; margin-top:12px; font-weight:600; color:#2c3e50; font-size:14px; }
-        input, select { width:100%; padding:9px 12px; margin-top:4px; border-radius:6px; border:1px solid #ccc; box-sizing:border-box; font-size:14px; }
+        input, select, textarea { width:100%; padding:9px 12px; margin-top:4px; border-radius:6px; border:1px solid #ccc; box-sizing:border-box; font-size:14px; }
         input[type=text], input[type=date] { text-transform:uppercase; }
+        textarea { resize:vertical; min-height:50px; font-size:13px; }
         .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
         .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
         .seccion { border:1px solid #e0e0e0; border-radius:10px; padding:20px; margin-top:20px; background:#fafafa; }
@@ -266,9 +286,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         .alerta { padding:12px; border-radius:6px; margin-bottom:15px; text-align:center; font-weight:500; }
         .alerta.success { background:#d4edda; color:#155724; }
         .alerta.error   { background:#f8d7da; color:#721c24; }
-        .check-row { display:flex; align-items:center; gap:8px; margin-top:8px; }
+        .check-row { display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap; }
         .check-row input[type=checkbox] { width:auto; margin:0; }
         a.back { text-decoration:none; color:#7f8c8d; font-size:14px; display:inline-block; margin-bottom:15px; }
+        .apodo-input { text-transform:none !important; }
     </style>
 </head>
 <body>
@@ -284,10 +305,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     <form method="POST" id="formNna">
 
-        <!-- ====================================================
-             SECCIÓN 1 — IDENTIDAD
-        ==================================================== -->
-        <h3>📋 Datos de Identidad</h3>
+        <!-- SECCIÓN 1 — IDENTIDAD -->
+        <h3>Datos de Identidad</h3>
 
         <label>CURP (opcional):</label>
         <input type="text" name="curp" maxlength="18" placeholder="18 CARACTERES">
@@ -303,8 +322,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             </div>
         </div>
 
-        <label>Apellido Materno:</label>
-        <input type="text" name="apellido_m">
+        <div class="grid2">
+            <div>
+                <label>Apellido Materno:</label>
+                <input type="text" name="apellido_m">
+            </div>
+            <div>
+                <!-- v8: apodo para construcción de confianza -->
+                <label> Apodo / ¿Cómo le gusta que le llamen?</label>
+                <input type="text" name="apodo" class="apodo-input" placeholder="Ej. Paco, Lupita, Chuy..." style="text-transform:none;">
+            </div>
+        </div>
 
         <div class="grid2">
             <div>
@@ -364,10 +392,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             </div>
         </div>
 
-        <!-- v7: Equipo multidisciplinario asignado -->
         <div class="grid2">
             <div>
-                <label>🏥 Equipo Asignado:</label>
+                <label>Equipo Asignado:</label>
                 <select name="id_equipo">
                     <option value="">SIN EQUIPO</option>
                     <?php foreach ($equipos as $eq): ?>
@@ -378,49 +405,31 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <div></div>
         </div>
 
-        <!-- ====================================================
-             SECCIÓN 2 — DIRECCIÓN
-        ==================================================== -->
-        <h3>🏠 Dirección Actual</h3>
+        <!-- SECCIÓN 2 — DIRECCIÓN -->
+        <h3> Dirección Actual</h3>
 
         <label>Calle:</label>
         <input type="text" name="calle">
 
         <div class="grid2">
-            <div>
-                <label>Núm. Exterior:</label>
-                <input type="text" name="num_ext">
-            </div>
-            <div>
-                <label>Núm. Interior:</label>
-                <input type="text" name="num_int">
-            </div>
+            <div><label>Núm. Exterior:</label><input type="text" name="num_ext"></div>
+            <div><label>Núm. Interior:</label><input type="text" name="num_int"></div>
         </div>
 
         <div class="grid2">
-            <div>
-                <label>Colonia: *</label>
-                <input type="text" name="colonia" required>
-            </div>
-            <div>
-                <label>Código Postal: *</label>
-                <input type="text" name="cp" maxlength="5" pattern="\d{5}" placeholder="5 DÍGITOS" required>
-            </div>
+            <div><label>Colonia: *</label><input type="text" name="colonia" required></div>
+            <div><label>Código Postal: *</label><input type="text" name="cp" maxlength="5" pattern="\d{5}" placeholder="5 DÍGITOS" required></div>
         </div>
 
         <label>Municipio/Alcaldía: *</label>
         <select name="id_municipio" required>
             <option value="" disabled selected>SELECCIONE MUNICIPIO</option>
             <?php foreach ($municipios as $m): ?>
-                <option value="<?= $m['id_municipio'] ?>">
-                    <?= htmlspecialchars(mb_strtoupper($m['nom_mun'] . ' — ' . $m['nom_ent'],'UTF-8')) ?>
-                </option>
+                <option value="<?= $m['id_municipio'] ?>"><?= htmlspecialchars(mb_strtoupper($m['nom_mun'].' — '.$m['nom_ent'],'UTF-8')) ?></option>
             <?php endforeach; ?>
         </select>
 
-        <!-- ====================================================
-             SECCIÓN 3 — VULNERABILIDAD
-        ==================================================== -->
+        <!-- SECCIÓN 3 — VULNERABILIDAD -->
         <h3>⚠️ Datos de Vulnerabilidad</h3>
 
         <div class="grid2">
@@ -429,55 +438,25 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <select name="id_pais">
                     <option value="">NO ESPECIFICADA</option>
                     <?php foreach ($paises as $p): ?>
-                        <option value="<?= $p['id'] ?>" <?= ($p['nombre']==='México')?'selected':'' ?>>
-                            <?= htmlspecialchars(mb_strtoupper($p['nombre'],'UTF-8')) ?>
-                        </option>
+                        <option value="<?= $p['id'] ?>" <?= ($p['nombre']==='México')?'selected':'' ?>><?= htmlspecialchars(mb_strtoupper($p['nombre'],'UTF-8')) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div>
-                <label>¿Situación de Calle?</label>
-                <select name="situacion_calle">
-                    <option value="No">No</option>
-                    <option value="Si">Sí</option>
-                </select>
-            </div>
+            <div><label>¿Situación de Calle?</label><select name="situacion_calle"><option value="No">No</option><option value="Si">Sí</option></select></div>
         </div>
-
         <div class="grid2">
-            <div>
-                <label>¿Es Migrante?</label>
-                <select name="migrante">
-                    <option value="No">No</option>
-                    <option value="Si">Sí</option>
-                </select>
-            </div>
-            <div>
-                <label>¿Es Refugiado?</label>
-                <select name="refugiado">
-                    <option value="No">No</option>
-                    <option value="Si">Sí</option>
-                </select>
-            </div>
+            <div><label>¿Es Migrante?</label><select name="migrante"><option value="No">No</option><option value="Si">Sí</option></select></div>
+            <div><label>¿Es Refugiado?</label><select name="refugiado"><option value="No">No</option><option value="Si">Sí</option></select></div>
         </div>
-
         <div class="grid2">
-            <div>
-                <label>¿Población Indígena?</label>
-                <select name="pob_indigena">
-                    <option value="No">No</option>
-                    <option value="Si">Sí</option>
-                </select>
-            </div>
+            <div><label>¿Población Indígena?</label><select name="pob_indigena"><option value="No">No</option><option value="Si">Sí</option></select></div>
             <div></div>
         </div>
 
-        <!-- ====================================================
-             SECCIÓN 4 — LENGUAS
-        ==================================================== -->
+        <!-- SECCIÓN 4 — LENGUAS (v8: campos ampliados) -->
         <h3>🗣️ Lenguas</h3>
         <div class="seccion" id="contenedor-lenguas">
-            <div class="fila-dinamica" id="lengua-0">
+            <div class="fila-dinamica">
                 <button type="button" class="btn-del" onclick="eliminarFila(this)">✕</button>
                 <div class="grid2">
                     <div>
@@ -498,25 +477,28 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         </select>
                     </div>
                 </div>
+                <div class="grid3" style="margin-top:8px;">
+                    <div><label style="font-size:12px;">Variante indígena:</label><input type="text" name="lengua_variante[]" placeholder="Ej. Zapoteco del Istmo" style="text-transform:none;font-size:12px;"></div>
+                    <div><label style="font-size:12px;">Autodenominación:</label><input type="text" name="lengua_autoden[]" placeholder="Ej. Diidxazá" style="text-transform:none;font-size:12px;"></div>
+                    <div><label style="font-size:12px;">Modo adquisición:</label><input type="text" name="lengua_modo[]" placeholder="Ej. Lengua materna" style="text-transform:none;font-size:12px;"></div>
+                </div>
                 <div class="check-row">
-                    <input type="checkbox" name="lengua_pref[0]" value="1"> <span>¿Es lengua preferente?</span>
+                    <input type="checkbox" name="lengua_pref[0]" value="1"> <span>Preferente</span>
                     &nbsp;&nbsp;
-                    <input type="checkbox" name="lengua_interp[0]" value="1"> <span>¿Requiere intérprete?</span>
+                    <input type="checkbox" name="lengua_interp[0]" value="1"> <span>Requiere intérprete</span>
                 </div>
             </div>
         </div>
         <button type="button" class="btn-add" onclick="agregarLengua()">+ Agregar Lengua</button>
 
-        <!-- ====================================================
-             SECCIÓN 5 — DISCAPACIDADES
-        ==================================================== -->
-        <h3>♿ Discapacidades</h3>
+        <!-- SECCIÓN 5 — DISCAPACIDADES (v8: +tratamiento, +medicamento) -->
+        <h3>♿ Discapacidades / Síndromes</h3>
         <div class="seccion" id="contenedor-disc">
-            <div class="fila-dinamica" id="disc-0">
+            <div class="fila-dinamica">
                 <button type="button" class="btn-del" onclick="eliminarFila(this)">✕</button>
                 <div class="grid2">
                     <div>
-                        <label>Tipo de Discapacidad:</label>
+                        <label>Tipo:</label>
                         <select name="disc_tipo[]">
                             <option value="">NINGUNA</option>
                             <?php foreach ($tipos_disc as $t): ?>
@@ -533,23 +515,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         </select>
                     </div>
                 </div>
+                <div><label style="font-size:12px;">Medicamento actual (si aplica):</label><input type="text" name="disc_med[]" placeholder="Ej. Metilfenidato 10mg" style="text-transform:none;font-size:12px;"></div>
                 <div class="check-row">
-                    <input type="checkbox" name="disc_diag[0]" value="1"> <span>¿Tiene diagnóstico médico oficial?</span>
+                    <input type="checkbox" name="disc_diag[0]" value="1"> <span>Diagnóstico oficial</span>
+                    &nbsp;&nbsp;
+                    <input type="checkbox" name="disc_trat[0]" value="1"> <span>Bajo tratamiento</span>
                 </div>
             </div>
         </div>
-        <button type="button" class="btn-add" onclick="agregarDiscapacidad()">+ Agregar Discapacidad</button>
+        <button type="button" class="btn-add" onclick="agregarDiscapacidad()">+ Agregar Discapacidad/Síndrome</button>
 
-        <!-- ====================================================
-             SECCIÓN 6 — CONTACTOS ADICIONALES
-        ==================================================== -->
+        <!-- SECCIÓN 6 — CONTACTOS -->
         <h3>📞 Contactos Adicionales</h3>
         <div class="seccion" id="contenedor-cont">
-            <div class="fila-dinamica" id="cont-0">
+            <div class="fila-dinamica">
                 <button type="button" class="btn-del" onclick="eliminarFila(this)">✕</button>
                 <div class="grid3">
                     <div>
-                        <label>Tipo de Contacto:</label>
+                        <label>Tipo:</label>
                         <select name="cont_tipo[]">
                             <option value="">SELECCIONE</option>
                             <?php foreach ($tipos_contacto as $tc): ?>
@@ -557,91 +540,58 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div>
-                        <label>Valor (número, usuario, etc.):</label>
-                        <input type="text" name="cont_valor[]" placeholder="EJ: 55-1234-5678" style="text-transform:none;">
-                    </div>
-                    <div>
-                        <label>Descripción (opcional):</label>
-                        <input type="text" name="cont_desc[]" placeholder="EJ: FACEBOOK DE LA ABUELA">
-                    </div>
+                    <div><label>Valor:</label><input type="text" name="cont_valor[]" placeholder="55-1234-5678" style="text-transform:none;"></div>
+                    <div><label>Descripción:</label><input type="text" name="cont_desc[]" placeholder="Ej. Facebook de la abuela"></div>
                 </div>
             </div>
         </div>
         <button type="button" class="btn-add" onclick="agregarContacto()">+ Agregar Contacto</button>
 
-        <button type="submit" class="btn-submit">💾 Registrar NNA</button>
+        <button type="submit" class="btn-submit"> Registrar NNA</button>
     </form>
 </div>
 
 <script>
-let cntLengua = 1;
-let cntDisc   = 1;
+let cntLengua = 1, cntDisc = 1;
 
-function eliminarFila(btn) {
-    btn.parentElement.remove();
-}
+function eliminarFila(btn) { btn.parentElement.remove(); }
 
 function agregarLengua() {
-    const i   = cntLengua++;
+    const i = cntLengua++;
     const div = document.createElement('div');
     div.className = 'fila-dinamica';
     div.innerHTML = `
         <button type="button" class="btn-del" onclick="eliminarFila(this)">✕</button>
         <div class="grid2">
-            <div>
-                <label>Lengua:</label>
-                <select name="lengua_id[]">
-                    <option value="">SELECCIONE</option>
-                    <?php foreach ($lenguas as $l): ?>
-                    <option value="<?= $l['id'] ?>"><?= htmlspecialchars(mb_strtoupper($l['nombre'],'UTF-8')) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div>
-                <label>Nivel de Competencia:</label>
-                <select name="lengua_nivel[]">
-                    <?php foreach ($niveles as $n): ?>
-                    <option value="<?= $n['id'] ?>"><?= htmlspecialchars($n['nombre']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
+            <div><label>Lengua:</label><select name="lengua_id[]"><option value="">SELECCIONE</option><?php foreach ($lenguas as $l): ?><option value="<?= $l['id'] ?>"><?= htmlspecialchars(mb_strtoupper($l['nombre'],'UTF-8')) ?></option><?php endforeach; ?></select></div>
+            <div><label>Nivel:</label><select name="lengua_nivel[]"><?php foreach ($niveles as $n): ?><option value="<?= $n['id'] ?>"><?= htmlspecialchars($n['nombre']) ?></option><?php endforeach; ?></select></div>
+        </div>
+        <div class="grid3" style="margin-top:8px;">
+            <div><label style="font-size:12px;">Variante indígena:</label><input type="text" name="lengua_variante[]" style="text-transform:none;font-size:12px;"></div>
+            <div><label style="font-size:12px;">Autodenominación:</label><input type="text" name="lengua_autoden[]" style="text-transform:none;font-size:12px;"></div>
+            <div><label style="font-size:12px;">Modo adquisición:</label><input type="text" name="lengua_modo[]" style="text-transform:none;font-size:12px;"></div>
         </div>
         <div class="check-row">
-            <input type="checkbox" name="lengua_pref[${i}]" value="1"> <span>¿Es lengua preferente?</span>
-            &nbsp;&nbsp;
-            <input type="checkbox" name="lengua_interp[${i}]" value="1"> <span>¿Requiere intérprete?</span>
+            <input type="checkbox" name="lengua_pref[${i}]" value="1"> <span>Preferente</span>&nbsp;&nbsp;
+            <input type="checkbox" name="lengua_interp[${i}]" value="1"> <span>Requiere intérprete</span>
         </div>`;
     document.getElementById('contenedor-lenguas').appendChild(div);
 }
 
 function agregarDiscapacidad() {
-    const i   = cntDisc++;
+    const i = cntDisc++;
     const div = document.createElement('div');
     div.className = 'fila-dinamica';
     div.innerHTML = `
         <button type="button" class="btn-del" onclick="eliminarFila(this)">✕</button>
         <div class="grid2">
-            <div>
-                <label>Tipo de Discapacidad:</label>
-                <select name="disc_tipo[]">
-                    <option value="">NINGUNA</option>
-                    <?php foreach ($tipos_disc as $t): ?>
-                    <option value="<?= $t['id'] ?>"><?= htmlspecialchars(mb_strtoupper($t['nombre'],'UTF-8')) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div>
-                <label>Grado de Dependencia:</label>
-                <select name="disc_grado[]">
-                    <?php foreach ($grados as $g): ?>
-                    <option value="<?= $g['id'] ?>"><?= htmlspecialchars($g['nombre']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
+            <div><label>Tipo:</label><select name="disc_tipo[]"><option value="">NINGUNA</option><?php foreach ($tipos_disc as $t): ?><option value="<?= $t['id'] ?>"><?= htmlspecialchars(mb_strtoupper($t['nombre'],'UTF-8')) ?></option><?php endforeach; ?></select></div>
+            <div><label>Grado:</label><select name="disc_grado[]"><?php foreach ($grados as $g): ?><option value="<?= $g['id'] ?>"><?= htmlspecialchars($g['nombre']) ?></option><?php endforeach; ?></select></div>
         </div>
+        <div><label style="font-size:12px;">Medicamento actual:</label><input type="text" name="disc_med[]" style="text-transform:none;font-size:12px;"></div>
         <div class="check-row">
-            <input type="checkbox" name="disc_diag[${i}]" value="1"> <span>¿Tiene diagnóstico médico oficial?</span>
+            <input type="checkbox" name="disc_diag[${i}]" value="1"> <span>Diagnóstico oficial</span>&nbsp;&nbsp;
+            <input type="checkbox" name="disc_trat[${i}]" value="1"> <span>Bajo tratamiento</span>
         </div>`;
     document.getElementById('contenedor-disc').appendChild(div);
 }
@@ -652,23 +602,9 @@ function agregarContacto() {
     div.innerHTML = `
         <button type="button" class="btn-del" onclick="eliminarFila(this)">✕</button>
         <div class="grid3">
-            <div>
-                <label>Tipo de Contacto:</label>
-                <select name="cont_tipo[]">
-                    <option value="">SELECCIONE</option>
-                    <?php foreach ($tipos_contacto as $tc): ?>
-                    <option value="<?= $tc['id'] ?>"><?= htmlspecialchars(mb_strtoupper($tc['nombre'],'UTF-8')) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div>
-                <label>Valor:</label>
-                <input type="text" name="cont_valor[]" placeholder="EJ: 55-1234-5678" style="text-transform:none;">
-            </div>
-            <div>
-                <label>Descripción (opcional):</label>
-                <input type="text" name="cont_desc[]">
-            </div>
+            <div><label>Tipo:</label><select name="cont_tipo[]"><option value="">SELECCIONE</option><?php foreach ($tipos_contacto as $tc): ?><option value="<?= $tc['id'] ?>"><?= htmlspecialchars(mb_strtoupper($tc['nombre'],'UTF-8')) ?></option><?php endforeach; ?></select></div>
+            <div><label>Valor:</label><input type="text" name="cont_valor[]" style="text-transform:none;"></div>
+            <div><label>Descripción:</label><input type="text" name="cont_desc[]"></div>
         </div>`;
     document.getElementById('contenedor-cont').appendChild(div);
 }

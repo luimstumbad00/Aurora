@@ -7,7 +7,7 @@ if (!isset($_SESSION['usuario'])) {
 }
 
 $rolActual = $_SESSION['usuario']['rol'];
-if ($rolActual !== 'Administrador') {
+if ($rolActual !== 'Administrador' && $rolActual !== 'Trabajador_Social') {
     header("Location: dashboard.php?error=acceso_denegado");
     exit();
 }
@@ -23,9 +23,7 @@ if (!isset($_GET['curp'])) {
 }
 $curp_original = trim($_GET['curp']);
 
-// ============================================================
-//  Cargar TODOS los catálogos
-// ============================================================
+// Catálogos
 $sexos = $paises = $tipos_contacto = $escolaridades = [];
 $grupos_sanguineos = $motivos = $estados = $municipios = [];
 $equipos = [];
@@ -55,86 +53,56 @@ try {
     $stmtId = $pdo->prepare("SELECT id_nna FROM nna WHERE curp = :curp LIMIT 1");
     $stmtId->execute([':curp' => $curp_original]);
     $id_nna_actual = $stmtId->fetchColumn();
-} catch (PDOException $e) {
-    $id_nna_actual = null;
-}
+} catch (PDOException $e) { $id_nna_actual = null; }
 if (!$id_nna_actual) die("NNA no encontrado.");
 
-// ============================================================
-//  AGREGAR CONTACTO
-// ============================================================
+// AGREGAR CONTACTO
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['agregar_contacto'])) {
     $id_tipo_contacto = !empty($_POST['id_tipo_contacto']) ? (int)$_POST['id_tipo_contacto'] : null;
     $valor_contacto   = trim($_POST['valor_contacto'] ?? '');
     $descripcion      = trim($_POST['descripcion_contacto'] ?? '');
-
     if (!$id_tipo_contacto || $valor_contacto === '') {
-        $mensaje = "Debes elegir el tipo de contacto y escribir su valor ⚠️";
-        $tipoMensaje = "error";
+        $mensaje = "Debes elegir el tipo de contacto y escribir su valor ⚠️"; $tipoMensaje = "error";
     } else {
         try {
-            $pdo->prepare("
-                INSERT INTO nna_contacto_adicional (id_nna, id_tipo_contacto, valor_contacto, descripcion)
-                VALUES (:id_nna, :id_tipo, :valor, :desc)
-            ")->execute([
-                ':id_nna'  => $id_nna_actual,
-                ':id_tipo' => $id_tipo_contacto,
-                ':valor'   => $valor_contacto,
-                ':desc'    => $descripcion !== '' ? $descripcion : null
-            ]);
-            header("Location: ".$_SERVER['PHP_SELF']."?curp=".urlencode($curp_original)."&c=ok");
-            exit();
+            $pdo->prepare("INSERT INTO nna_contacto_adicional (id_nna, id_tipo_contacto, valor_contacto, descripcion) VALUES (:id_nna, :id_tipo, :valor, :desc)")
+                ->execute([':id_nna'=>$id_nna_actual, ':id_tipo'=>$id_tipo_contacto, ':valor'=>$valor_contacto, ':desc'=>$descripcion!==''?$descripcion:null]);
+            header("Location: ".$_SERVER['PHP_SELF']."?curp=".urlencode($curp_original)."&c=ok"); exit();
         } catch (PDOException $e) {
-            $mensaje     = strpos($e->getMessage(),'uq_nna_contacto') !== false
-                         ? "Ese contacto ya está registrado ⚠️"
-                         : "Error al agregar el contacto ❌";
+            $mensaje = strpos($e->getMessage(),'uq_nna_contacto')!==false ? "Ese contacto ya está registrado ⚠️" : "Error al agregar el contacto ❌";
             $tipoMensaje = "error";
         }
     }
 }
 
-// ============================================================
-//  BORRAR CONTACTO
-// ============================================================
+// BORRAR CONTACTO
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['borrar_contacto'])) {
     $id_contacto = (int)($_POST['id_contacto'] ?? 0);
     try {
         $pdo->prepare("DELETE FROM nna_contacto_adicional WHERE id_contacto = :id AND id_nna = :id_nna")
-            ->execute([':id' => $id_contacto, ':id_nna' => $id_nna_actual]);
-        header("Location: ".$_SERVER['PHP_SELF']."?curp=".urlencode($curp_original)."&c=del");
-        exit();
-    } catch (PDOException $e) {
-        $mensaje = "Error al borrar el contacto ❌";
-        $tipoMensaje = "error";
-    }
+            ->execute([':id'=>$id_contacto, ':id_nna'=>$id_nna_actual]);
+        header("Location: ".$_SERVER['PHP_SELF']."?curp=".urlencode($curp_original)."&c=del"); exit();
+    } catch (PDOException $e) { $mensaje = "Error al borrar el contacto ❌"; $tipoMensaje = "error"; }
 }
 
-// Mensajes PRG
+// PRG
 if (isset($_GET['c'])) {
-    if ($_GET['c'] === 'ok')  { $mensaje = "Contacto agregado correctamente ✅"; $tipoMensaje = "success"; }
-    if ($_GET['c'] === 'del') { $mensaje = "Contacto eliminado correctamente ✅"; $tipoMensaje = "success"; }
+    if ($_GET['c']==='ok')  { $mensaje = "Contacto agregado correctamente ✅"; $tipoMensaje = "success"; }
+    if ($_GET['c']==='del') { $mensaje = "Contacto eliminado correctamente ✅"; $tipoMensaje = "success"; }
 }
 
-// ============================================================
-//  ELIMINAR NNA
-// ============================================================
+// ELIMINAR NNA
 if (isset($_POST['eliminar_nna'])) {
     try {
         $pdo->prepare("DELETE FROM nna WHERE curp = :curp")->execute([':curp' => $curp_original]);
-        header("Location: ver_nnas.php?mensaje=eliminado_exito");
-        exit();
-    } catch (PDOException $e) {
-        $mensaje = "Error al eliminar el registro ❌";
-        $tipoMensaje = "error";
-    }
+        header("Location: ver_nnas.php?mensaje=eliminado_exito"); exit();
+    } catch (PDOException $e) { $mensaje = "Error al eliminar el registro ❌"; $tipoMensaje = "error"; }
 }
 
-// ============================================================
-//  ACTUALIZAR NNA
-// ============================================================
+// ACTUALIZAR NNA (v8: +apodo)
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['actualizar_nna'])) {
-
     $nombres         = strtoupper(trim($_POST['nombres']    ?? ''));
+    $apodo           = trim($_POST['apodo'] ?? '');
     $apellido_p      = strtoupper(trim($_POST['apellido_p'] ?? ''));
     $apellido_m      = strtoupper(trim($_POST['apellido_m'] ?? ''));
     $nacimiento      = $_POST['nacimiento'] ?? '';
@@ -151,7 +119,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['actualizar_nna'])) {
     $es_refugiado       = ($_POST['es_refugiado']       ?? '') === 'Si' ? 'true' : 'false';
     $poblacion_indigena = ($_POST['poblacion_indigena'] ?? '') === 'Si' ? 'true' : 'false';
 
-    // Dirección
     $calle        = strtoupper(trim($_POST['calle']    ?? ''));
     $num_ext      = strtoupper(trim($_POST['num_ext']  ?? ''));
     $num_int      = !empty($_POST['num_int']) ? strtoupper(trim($_POST['num_int'])) : null;
@@ -160,35 +127,25 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['actualizar_nna'])) {
     $id_municipio = !empty($_POST['id_municipio']) ? (int)$_POST['id_municipio'] : null;
 
     if (!$id_sexo) {
-        $mensaje = "El sexo es obligatorio ⚠️";
-        $tipoMensaje = "error";
+        $mensaje = "El sexo es obligatorio ⚠️"; $tipoMensaje = "error";
     } elseif (!empty($cp) && !preg_match('/^\d{5}$/', $cp)) {
-        $mensaje = "El Código Postal debe tener 5 dígitos ⚠️";
-        $tipoMensaje = "error";
+        $mensaje = "El Código Postal debe tener 5 dígitos ⚠️"; $tipoMensaje = "error";
     } else {
         try {
             $pdo->beginTransaction();
 
-            // Actualizar NNA (v7: +id_equipo)
             $pdo->prepare("
                 UPDATE nna SET
-                    nombre             = :nombre,
-                    prim_ap            = :ap_p,
-                    seg_ap             = :ap_m,
-                    fecha_nacimiento   = :fnac,
-                    id_sexo            = :id_sexo,
-                    id_escolaridad     = :id_escolaridad,
-                    id_grupo_sanguineo = :id_grupo_sang,
-                    id_motivo_ingreso  = :id_motivo,
-                    luga_nac_nna       = :luga_nac,
-                    id_equipo          = :id_equipo,
-                    situacion_calle    = :sit_calle,
-                    es_migrante        = :migrante,
-                    es_refugiado       = :refugiado,
-                    poblacion_indigena = :indigena
+                    nombre = :nombre, apodo = :apodo, prim_ap = :ap_p, seg_ap = :ap_m,
+                    fecha_nacimiento = :fnac, id_sexo = :id_sexo, id_escolaridad = :id_escolaridad,
+                    id_grupo_sanguineo = :id_grupo_sang, id_motivo_ingreso = :id_motivo,
+                    luga_nac_nna = :luga_nac, id_equipo = :id_equipo,
+                    situacion_calle = :sit_calle, es_migrante = :migrante,
+                    es_refugiado = :refugiado, poblacion_indigena = :indigena
                 WHERE id_nna = :id_nna
             ")->execute([
                 ':nombre'         => $nombres,
+                ':apodo'          => $apodo !== '' ? $apodo : null,
                 ':ap_p'           => $apellido_p,
                 ':ap_m'           => $apellido_m !== '' ? $apellido_m : null,
                 ':fnac'           => $nacimiento,
@@ -205,96 +162,67 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['actualizar_nna'])) {
                 ':id_nna'         => $id_nna_actual
             ]);
 
-            // Actualizar dirección si se proporcionó municipio y colonia
             if ($id_municipio && $colonia !== '') {
                 $id_dir_actual = $pdo->prepare("SELECT dir_actual FROM nna WHERE id_nna = :id");
                 $id_dir_actual->execute([':id' => $id_nna_actual]);
                 $id_dir = $id_dir_actual->fetchColumn();
 
                 if ($id_dir) {
-                    $pdo->prepare("
-                        UPDATE direccion SET
-                            calle_dir = :calle, no_ext_dir = :num_ext, no_int_dir = :num_int,
-                            colonia_abierta = :colonia, codigo_postal = :cp, id_municipio = :id_municipio
-                        WHERE id_dir = :id_dir
-                    ")->execute([
-                        ':calle' => $calle !== '' ? $calle : null, ':num_ext' => $num_ext !== '' ? $num_ext : null,
-                        ':num_int' => $num_int, ':colonia' => $colonia, ':cp' => $cp,
-                        ':id_municipio' => $id_municipio, ':id_dir' => $id_dir
-                    ]);
+                    $pdo->prepare("UPDATE direccion SET calle_dir=:calle, no_ext_dir=:num_ext, no_int_dir=:num_int, colonia_abierta=:colonia, codigo_postal=:cp, id_municipio=:id_municipio WHERE id_dir=:id_dir")
+                        ->execute([':calle'=>$calle!==''?$calle:null, ':num_ext'=>$num_ext!==''?$num_ext:null, ':num_int'=>$num_int, ':colonia'=>$colonia, ':cp'=>$cp, ':id_municipio'=>$id_municipio, ':id_dir'=>$id_dir]);
                 } else {
-                    $stmtDir = $pdo->prepare("
-                        INSERT INTO direccion (calle_dir, no_ext_dir, no_int_dir, colonia_abierta, codigo_postal, id_municipio)
-                        VALUES (:calle, :num_ext, :num_int, :colonia, :cp, :id_municipio)
-                        RETURNING id_dir
-                    ");
-                    $stmtDir->execute([
-                        ':calle' => $calle !== '' ? $calle : null, ':num_ext' => $num_ext !== '' ? $num_ext : null,
-                        ':num_int' => $num_int, ':colonia' => $colonia, ':cp' => $cp, ':id_municipio' => $id_municipio
-                    ]);
+                    $stmtDir = $pdo->prepare("INSERT INTO direccion (calle_dir, no_ext_dir, no_int_dir, colonia_abierta, codigo_postal, id_municipio) VALUES (:calle, :num_ext, :num_int, :colonia, :cp, :id_municipio) RETURNING id_dir");
+                    $stmtDir->execute([':calle'=>$calle!==''?$calle:null, ':num_ext'=>$num_ext!==''?$num_ext:null, ':num_int'=>$num_int, ':colonia'=>$colonia, ':cp'=>$cp, ':id_municipio'=>$id_municipio]);
                     $nuevo_id_dir = $stmtDir->fetchColumn();
                     $pdo->prepare("UPDATE nna SET dir_actual = :id_dir WHERE id_nna = :id_nna")
-                        ->execute([':id_dir' => $nuevo_id_dir, ':id_nna' => $id_nna_actual]);
+                        ->execute([':id_dir'=>$nuevo_id_dir, ':id_nna'=>$id_nna_actual]);
                 }
             }
 
-            // Actualizar nacionalidad
-            $pdo->prepare("DELETE FROM nna_nacionalidad WHERE id_nna = :id_nna")
-                ->execute([':id_nna' => $id_nna_actual]);
+            $pdo->prepare("DELETE FROM nna_nacionalidad WHERE id_nna = :id_nna")->execute([':id_nna'=>$id_nna_actual]);
             if ($id_pais) {
                 $pdo->prepare("INSERT INTO nna_nacionalidad (id_nna, id_pais) VALUES (:id_nna, :id_pais)")
-                    ->execute([':id_nna' => $id_nna_actual, ':id_pais' => $id_pais]);
+                    ->execute([':id_nna'=>$id_nna_actual, ':id_pais'=>$id_pais]);
             }
 
             $pdo->commit();
-            $mensaje     = "Información del NNA actualizada correctamente ✅";
-            $tipoMensaje = "success";
+            $mensaje = "Información del NNA actualizada correctamente ✅"; $tipoMensaje = "success";
 
         } catch (PDOException $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
-            $mensaje     = "Error al actualizar ❌ " . $e->getMessage();
+            $err = $e->getMessage();
+            if     (strpos($err, 'AURORA-001') !== false) $mensaje = "El usuario registrador no existe o no está activo ⚠️";
+            elseif (strpos($err, 'AURORA-002') !== false) $mensaje = "Solo un Trabajador Social puede modificar el registrador ⚠️";
+            elseif (strpos($err, 'nna_dir_actual_key') !== false) $mensaje = "Esa dirección ya está asignada a otro NNA ⚠️";
+            else $mensaje = "Error al actualizar ❌ " . $err;
             $tipoMensaje = "error";
         }
     }
 }
 
-// ============================================================
-//  Cargar datos actuales del NNA (v7: +id_equipo)
-// ============================================================
+// Cargar datos actuales (v8: +apodo)
 try {
     $stmt = $pdo->prepare("
-        SELECT
-            n.id_nna, n.curp, n.nombre,
-            n.prim_ap            AS apellido_paterno,
-            n.seg_ap             AS apellido_materno,
+        SELECT n.id_nna, n.curp, n.nombre, n.apodo,
+            n.prim_ap AS apellido_paterno, n.seg_ap AS apellido_materno,
             n.fecha_nacimiento, n.id_sexo, n.id_escolaridad, n.id_grupo_sanguineo,
             n.id_motivo_ingreso, n.luga_nac_nna, n.id_equipo,
             n.situacion_calle, n.es_migrante, n.es_refugiado, n.poblacion_indigena,
             d.id_dir, d.calle_dir AS calle, d.no_ext_dir AS num_ext, d.no_int_dir AS num_int,
             d.colonia_abierta AS colonia, d.codigo_postal AS cp, d.id_municipio,
             (SELECT nn.id_pais FROM nna_nacionalidad nn WHERE nn.id_nna = n.id_nna LIMIT 1) AS id_pais
-        FROM nna n
-        LEFT JOIN direccion d ON d.id_dir = n.dir_actual
-        WHERE n.curp = :curp
-        LIMIT 1
+        FROM nna n LEFT JOIN direccion d ON d.id_dir = n.dir_actual
+        WHERE n.curp = :curp LIMIT 1
     ");
     $stmt->execute([':curp' => $curp_original]);
     $nna = $stmt->fetch(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $nna = null;
-}
+} catch (PDOException $e) { $nna = null; }
 if (!$nna) die("NNA no encontrado.");
 
 // Contactos
 $contactos = [];
 try {
-    $stmtC = $pdo->prepare("
-        SELECT ca.id_contacto, ca.valor_contacto, ca.descripcion, tc.nombre AS tipo
-        FROM   nna_contacto_adicional ca
-        JOIN   cat_tipo_contacto tc ON tc.id = ca.id_tipo_contacto
-        WHERE  ca.id_nna = :id_nna
-        ORDER BY tc.nombre
-    ");
+    $stmtC = $pdo->prepare("SELECT ca.id_contacto, ca.valor_contacto, ca.descripcion, tc.nombre AS tipo FROM nna_contacto_adicional ca JOIN cat_tipo_contacto tc ON tc.id = ca.id_tipo_contacto WHERE ca.id_nna = :id_nna ORDER BY tc.nombre");
     $stmtC->execute([':id_nna' => $id_nna_actual]);
     $contactos = $stmtC->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { $contactos = []; }
@@ -334,46 +262,37 @@ try {
     <h1>Editar NNA</h1>
 
     <?php if ($mensaje): ?>
-        <div class="alerta <?= $tipoMensaje ?>">
-            <?= htmlspecialchars($mensaje) ?>
-        </div>
+        <div class="alerta <?= $tipoMensaje ?>"><?= htmlspecialchars($mensaje) ?></div>
     <?php endif; ?>
 
     <form method="POST">
-
-        <!-- IDENTIDAD -->
-        <h2>👤 Datos de Identidad</h2>
+        <h2> Datos de Identidad</h2>
 
         <label>CURP (no editable):</label>
         <input type="text" value="<?= htmlspecialchars($nna['curp'] ?? 'Sin CURP') ?>" disabled style="background:#eee;">
 
         <div class="grid2">
+            <div><label>Nombre(s):</label><input type="text" name="nombres" value="<?= htmlspecialchars($nna['nombre']) ?>" required></div>
+            <div><label>Apellido Paterno:</label><input type="text" name="apellido_p" value="<?= htmlspecialchars($nna['apellido_paterno']) ?>" required></div>
+        </div>
+
+        <div class="grid2">
+            <div><label>Apellido Materno:</label><input type="text" name="apellido_m" value="<?= htmlspecialchars($nna['apellido_materno'] ?? '') ?>"></div>
             <div>
-                <label>Nombre(s):</label>
-                <input type="text" name="nombres" value="<?= htmlspecialchars($nna['nombre']) ?>" required>
-            </div>
-            <div>
-                <label>Apellido Paterno:</label>
-                <input type="text" name="apellido_p" value="<?= htmlspecialchars($nna['apellido_paterno']) ?>" required>
+                <!-- v8: apodo -->
+                <label> Apodo / ¿Cómo le gusta que le llamen?</label>
+                <input type="text" name="apodo" value="<?= htmlspecialchars($nna['apodo'] ?? '') ?>" style="text-transform:none;" placeholder="Ej. Paco, Lupita...">
             </div>
         </div>
 
-        <label>Apellido Materno:</label>
-        <input type="text" name="apellido_m" value="<?= htmlspecialchars($nna['apellido_materno'] ?? '') ?>">
-
         <div class="grid2">
-            <div>
-                <label>Fecha de Nacimiento:</label>
-                <input type="date" name="nacimiento" max="<?= date('Y-m-d') ?>" value="<?= htmlspecialchars($nna['fecha_nacimiento']) ?>" required>
-            </div>
+            <div><label>Fecha de Nacimiento:</label><input type="date" name="nacimiento" max="<?= date('Y-m-d') ?>" value="<?= htmlspecialchars($nna['fecha_nacimiento']) ?>" required></div>
             <div>
                 <label>Sexo:</label>
                 <select name="id_sexo" required>
                     <option value="">SELECCIONE</option>
                     <?php foreach ($sexos as $s): ?>
-                        <option value="<?= $s['id'] ?>" <?= ($nna['id_sexo']==$s['id'])?'selected':'' ?>>
-                            <?= htmlspecialchars(mb_strtoupper($s['nombre'],'UTF-8')) ?>
-                        </option>
+                        <option value="<?= $s['id'] ?>" <?= ($nna['id_sexo']==$s['id'])?'selected':'' ?>><?= htmlspecialchars(mb_strtoupper($s['nombre'],'UTF-8')) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -385,9 +304,7 @@ try {
                 <select name="id_escolaridad">
                     <option value="">NO ESPECIFICADA</option>
                     <?php foreach ($escolaridades as $e): ?>
-                        <option value="<?= $e['id'] ?>" <?= ($nna['id_escolaridad']==$e['id'])?'selected':'' ?>>
-                            <?= htmlspecialchars(mb_strtoupper($e['nombre'],'UTF-8')) ?>
-                        </option>
+                        <option value="<?= $e['id'] ?>" <?= ($nna['id_escolaridad']==$e['id'])?'selected':'' ?>><?= htmlspecialchars(mb_strtoupper($e['nombre'],'UTF-8')) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -396,9 +313,7 @@ try {
                 <select name="id_grupo_sanguineo">
                     <option value="">DESCONOCIDO</option>
                     <?php foreach ($grupos_sanguineos as $g): ?>
-                        <option value="<?= $g['id'] ?>" <?= ($nna['id_grupo_sanguineo']==$g['id'])?'selected':'' ?>>
-                            <?= htmlspecialchars($g['nombre']) ?>
-                        </option>
+                        <option value="<?= $g['id'] ?>" <?= ($nna['id_grupo_sanguineo']==$g['id'])?'selected':'' ?>><?= htmlspecialchars($g['nombre']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -410,9 +325,7 @@ try {
                 <select name="id_motivo_ingreso">
                     <option value="">NO ESPECIFICADO</option>
                     <?php foreach ($motivos as $m): ?>
-                        <option value="<?= $m['id'] ?>" <?= ($nna['id_motivo_ingreso']==$m['id'])?'selected':'' ?>>
-                            <?= htmlspecialchars(mb_strtoupper($m['nombre'],'UTF-8')) ?>
-                        </option>
+                        <option value="<?= $m['id'] ?>" <?= ($nna['id_motivo_ingreso']==$m['id'])?'selected':'' ?>><?= htmlspecialchars(mb_strtoupper($m['nombre'],'UTF-8')) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -421,9 +334,7 @@ try {
                 <select name="luga_nac_nna">
                     <option value="">NO ESPECIFICADO</option>
                     <?php foreach ($estados as $e): ?>
-                        <option value="<?= $e['id_ent'] ?>" <?= ($nna['luga_nac_nna']==$e['id_ent'])?'selected':'' ?>>
-                            <?= htmlspecialchars(mb_strtoupper($e['nom_ent'],'UTF-8')) ?>
-                        </option>
+                        <option value="<?= $e['id_ent'] ?>" <?= ($nna['luga_nac_nna']==$e['id_ent'])?'selected':'' ?>><?= htmlspecialchars(mb_strtoupper($e['nom_ent'],'UTF-8')) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -435,121 +346,65 @@ try {
                 <select name="id_pais">
                     <option value="">NO ESPECIFICADA</option>
                     <?php foreach ($paises as $p): ?>
-                        <option value="<?= $p['id'] ?>" <?= ($nna['id_pais']==$p['id'])?'selected':'' ?>>
-                            <?= htmlspecialchars(mb_strtoupper($p['nombre'],'UTF-8')) ?>
-                        </option>
+                        <option value="<?= $p['id'] ?>" <?= ($nna['id_pais']==$p['id'])?'selected':'' ?>><?= htmlspecialchars(mb_strtoupper($p['nombre'],'UTF-8')) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div>
-                <!-- v7: Equipo multidisciplinario -->
-                <label>🏥 Equipo Asignado:</label>
+                <label> Equipo Asignado:</label>
                 <select name="id_equipo">
                     <option value="">SIN EQUIPO</option>
                     <?php foreach ($equipos as $eq): ?>
-                        <option value="<?= $eq['id_equipo'] ?>" <?= ($nna['id_equipo']==$eq['id_equipo'])?'selected':'' ?>>
-                            <?= htmlspecialchars(mb_strtoupper($eq['nombre_equipo'],'UTF-8')) ?>
-                        </option>
+                        <option value="<?= $eq['id_equipo'] ?>" <?= ($nna['id_equipo']==$eq['id_equipo'])?'selected':'' ?>><?= htmlspecialchars(mb_strtoupper($eq['nombre_equipo'],'UTF-8')) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
         </div>
 
-        <!-- VULNERABILIDAD -->
         <div class="seccion">
             <h2>⚠️ Vulnerabilidad</h2>
             <div class="grid2">
-                <div>
-                    <label>¿Situación de Calle?</label>
-                    <select name="situacion_calle">
-                        <option value="Si" <?= $nna['situacion_calle']==='t'?'selected':'' ?>>Sí</option>
-                        <option value="No" <?= $nna['situacion_calle']==='f'?'selected':'' ?>>No</option>
-                    </select>
-                </div>
-                <div>
-                    <label>¿Es Migrante?</label>
-                    <select name="es_migrante">
-                        <option value="Si" <?= $nna['es_migrante']==='t'?'selected':'' ?>>Sí</option>
-                        <option value="No" <?= $nna['es_migrante']==='f'?'selected':'' ?>>No</option>
-                    </select>
-                </div>
-                <div>
-                    <label>¿Es Refugiado?</label>
-                    <select name="es_refugiado">
-                        <option value="Si" <?= $nna['es_refugiado']==='t'?'selected':'' ?>>Sí</option>
-                        <option value="No" <?= $nna['es_refugiado']==='f'?'selected':'' ?>>No</option>
-                    </select>
-                </div>
-                <div>
-                    <label>¿Población Indígena?</label>
-                    <select name="poblacion_indigena">
-                        <option value="Si" <?= $nna['poblacion_indigena']==='t'?'selected':'' ?>>Sí</option>
-                        <option value="No" <?= $nna['poblacion_indigena']==='f'?'selected':'' ?>>No</option>
-                    </select>
-                </div>
+                <div><label>¿Situación de Calle?</label><select name="situacion_calle"><option value="Si" <?= $nna['situacion_calle']==='t'?'selected':'' ?>>Sí</option><option value="No" <?= $nna['situacion_calle']==='f'?'selected':'' ?>>No</option></select></div>
+                <div><label>¿Es Migrante?</label><select name="es_migrante"><option value="Si" <?= $nna['es_migrante']==='t'?'selected':'' ?>>Sí</option><option value="No" <?= $nna['es_migrante']==='f'?'selected':'' ?>>No</option></select></div>
+                <div><label>¿Es Refugiado?</label><select name="es_refugiado"><option value="Si" <?= $nna['es_refugiado']==='t'?'selected':'' ?>>Sí</option><option value="No" <?= $nna['es_refugiado']==='f'?'selected':'' ?>>No</option></select></div>
+                <div><label>¿Población Indígena?</label><select name="poblacion_indigena"><option value="Si" <?= $nna['poblacion_indigena']==='t'?'selected':'' ?>>Sí</option><option value="No" <?= $nna['poblacion_indigena']==='f'?'selected':'' ?>>No</option></select></div>
             </div>
         </div>
 
-        <!-- DIRECCIÓN -->
         <div class="seccion">
             <h2>🏠 Dirección Actual</h2>
-
-            <label>Calle:</label>
-            <input type="text" name="calle" value="<?= htmlspecialchars($nna['calle'] ?? '') ?>">
-
+            <label>Calle:</label><input type="text" name="calle" value="<?= htmlspecialchars($nna['calle'] ?? '') ?>">
             <div class="grid2">
-                <div>
-                    <label>Núm. Exterior:</label>
-                    <input type="text" name="num_ext" value="<?= htmlspecialchars($nna['num_ext'] ?? '') ?>">
-                </div>
-                <div>
-                    <label>Núm. Interior:</label>
-                    <input type="text" name="num_int" value="<?= htmlspecialchars($nna['num_int'] ?? '') ?>">
-                </div>
+                <div><label>Núm. Exterior:</label><input type="text" name="num_ext" value="<?= htmlspecialchars($nna['num_ext'] ?? '') ?>"></div>
+                <div><label>Núm. Interior:</label><input type="text" name="num_int" value="<?= htmlspecialchars($nna['num_int'] ?? '') ?>"></div>
             </div>
-
             <div class="grid2">
-                <div>
-                    <label>Colonia:</label>
-                    <input type="text" name="colonia" value="<?= htmlspecialchars($nna['colonia'] ?? '') ?>">
-                </div>
-                <div>
-                    <label>Código Postal:</label>
-                    <input type="text" name="cp" maxlength="5" pattern="\d{5}" value="<?= htmlspecialchars($nna['cp'] ?? '') ?>">
-                </div>
+                <div><label>Colonia:</label><input type="text" name="colonia" value="<?= htmlspecialchars($nna['colonia'] ?? '') ?>"></div>
+                <div><label>Código Postal:</label><input type="text" name="cp" maxlength="5" pattern="\d{5}" value="<?= htmlspecialchars($nna['cp'] ?? '') ?>"></div>
             </div>
-
             <label>Municipio/Alcaldía:</label>
             <select name="id_municipio">
                 <option value="">NO ESPECIFICADO</option>
                 <?php foreach ($municipios as $m): ?>
-                    <option value="<?= $m['id_municipio'] ?>" <?= ($nna['id_municipio']==$m['id_municipio'])?'selected':'' ?>>
-                        <?= htmlspecialchars(mb_strtoupper($m['nom_mun'].' — '.$m['nom_ent'],'UTF-8')) ?>
-                    </option>
+                    <option value="<?= $m['id_municipio'] ?>" <?= ($nna['id_municipio']==$m['id_municipio'])?'selected':'' ?>><?= htmlspecialchars(mb_strtoupper($m['nom_mun'].' — '.$m['nom_ent'],'UTF-8')) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
 
-        <button type="submit" name="actualizar_nna" class="btn-update">💾 Guardar Cambios</button>
-        <button type="submit" name="eliminar_nna"  class="btn-delete"
-                onclick="return confirm('¿Seguro que deseas eliminar este registro? Esta acción no se puede deshacer.')">
-            🗑️ Eliminar NNA
-        </button>
+        <button type="submit" name="actualizar_nna" class="btn-update"> Guardar Cambios</button>
+        <button type="submit" name="eliminar_nna" class="btn-delete" onclick="return confirm('¿Seguro que deseas eliminar este registro?');">🗑️ Eliminar NNA</button>
     </form>
 </div>
 
-<!-- CONTACTOS ADICIONALES -->
+<!-- CONTACTOS -->
 <div class="card">
     <h2>📇 Contactos Adicionales</h2>
-
     <?php if (count($contactos) > 0): ?>
         <?php foreach ($contactos as $c): ?>
             <div class="contacto-item">
                 <div class="info">
                     <strong><?= htmlspecialchars($c['tipo']) ?>:</strong> <?= htmlspecialchars($c['valor_contacto']) ?>
-                    <?php if (!empty($c['descripcion'])): ?>
-                        <br><small><?= htmlspecialchars($c['descripcion']) ?></small>
-                    <?php endif; ?>
+                    <?php if (!empty($c['descripcion'])): ?><br><small><?= htmlspecialchars($c['descripcion']) ?></small><?php endif; ?>
                 </div>
                 <form method="POST" style="margin:0;" onsubmit="return confirm('¿Borrar este contacto?');">
                     <input type="hidden" name="id_contacto" value="<?= (int)$c['id_contacto'] ?>">
@@ -570,17 +425,11 @@ try {
                     <option value="<?= $tc['id'] ?>"><?= htmlspecialchars($tc['nombre']) ?></option>
                 <?php endforeach; ?>
             </select>
-
-            <label>Valor:</label>
-            <input type="text" name="valor_contacto" required style="text-transform:none;" placeholder="Ej. 55-1234-5678">
-
-            <label>Descripción (opcional):</label>
-            <input type="text" name="descripcion_contacto" style="text-transform:none;" placeholder="Ej. Teléfono de la abuela">
-
+            <label>Valor:</label><input type="text" name="valor_contacto" required style="text-transform:none;" placeholder="Ej. 55-1234-5678">
+            <label>Descripción (opcional):</label><input type="text" name="descripcion_contacto" style="text-transform:none;" placeholder="Ej. Teléfono de la abuela">
             <button type="submit" name="agregar_contacto" class="btn-update" style="margin-top:14px;">➕ Agregar Contacto</button>
         </form>
     </div>
 </div>
-
 </body>
 </html>

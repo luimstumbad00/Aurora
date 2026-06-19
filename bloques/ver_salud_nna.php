@@ -56,7 +56,7 @@ try {
 </head>
 <body>
 <div class="container">
-<h2>🏥 Historial de Salud: <?= htmlspecialchars($curp) ?></h2>
+<h2>Historial de Salud: <?= htmlspecialchars($curp) ?></h2>
 <a href="registrar_enfermedad.php?curp_nna=<?= urlencode($curp) ?>" class="btn-asignar" style="display:inline-block; margin-bottom:20px;">+ Agregar Padecimiento</a>
 <?php if (count($enfermedades) > 0): ?>
 <?php foreach ($enfermedades as $enf): ?>

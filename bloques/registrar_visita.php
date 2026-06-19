@@ -264,13 +264,13 @@ try {
                 </div>
             </div>
 
-            <button type="submit" name="guardar_visita" class="btn-guardar">📅 Registrar Visita</button>
+            <button type="submit" name="guardar_visita" class="btn-guardar"> Registrar Visita</button>
         </form>
     </div>
 
     <!-- HISTORIAL -->
     <div class="card">
-        <h2>📋 Historial de Visitas</h2>
+        <h2> Historial de Visitas</h2>
 
         <?php if (count($visitas) > 0): ?>
             <?php foreach ($visitas as $v): ?>
@@ -308,13 +308,13 @@ try {
 
                     <div style="font-size:12px; color:#555; margin:6px 0;">
                         <?php if ($v['fecha_programada']): ?>
-                            📅 Programada: <?= htmlspecialchars($v['fecha_programada']) ?>
+                             Programada: <?= htmlspecialchars($v['fecha_programada']) ?>
                         <?php endif; ?>
                         <?php if ($v['fecha_realizada']): ?>
-                            &nbsp;|&nbsp; ✅ Realizada: <?= htmlspecialchars($v['fecha_realizada']) ?>
+                            &nbsp;|&nbsp; Realizada: <?= htmlspecialchars($v['fecha_realizada']) ?>
                         <?php endif; ?>
                         <?php if ($v['lugar_visita']): ?>
-                            &nbsp;|&nbsp; 📍 <?= htmlspecialchars($v['lugar_visita']) ?>
+                            &nbsp;|&nbsp; <?= htmlspecialchars($v['lugar_visita']) ?>
                         <?php endif; ?>
                     </div>
 

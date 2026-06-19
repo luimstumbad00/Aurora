@@ -243,7 +243,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['cambiar_pass'])) {
 
         <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;">
 
-        <a href="logout.php" class="btn-logout">🚪 Cerrar Sesión</a>
+        <a href="logout.php" class="btn-logout"> Cerrar Sesión</a>
     </div>
 
 </div>

@@ -142,7 +142,7 @@ try {
         <?php endif; ?>
 
         <div style="background:#fff3cd; border:1px solid #ffc107; border-radius:6px; padding:10px; font-size:12px; color:#856404; margin-bottom:14px;">
-            📌 Registrando como: <strong><?= htmlspecialchars($usuario['nombre'].' '.$usuario['apellido_paterno']) ?></strong>
+             Registrando como: <strong><?= htmlspecialchars($usuario['nombre'].' '.$usuario['apellido_paterno']) ?></strong>
             — Rol: <strong><?= htmlspecialchars($usuario['rol']) ?></strong>
             (la nota se asocia automáticamente a tu área de atención).
         </div>
@@ -153,19 +153,19 @@ try {
             <label>Notas de Evolución: *</label>
             <textarea name="notas_evolucion" required placeholder="Escriba aquí las observaciones, avances o incidencias del caso..."></textarea>
 
-            <button type="submit" name="guardar_nota" class="btn-guardar">💾 Registrar Nota</button>
+            <button type="submit" name="guardar_nota" class="btn-guardar"> Registrar Nota</button>
         </form>
     </div>
 
     <!-- HISTORIAL -->
     <div class="card">
-        <h2>📋 Historial de Notas</h2>
+        <h2> Historial de Notas</h2>
 
         <?php if (count($notas) > 0): ?>
             <?php foreach ($notas as $n): ?>
                 <div class="nota-card">
                     <div class="meta">
-                        🕐 <?= htmlspecialchars($n['fecha_atencion']) ?>
+                         <?= htmlspecialchars($n['fecha_atencion']) ?>
                         &nbsp;—&nbsp; <strong><?= htmlspecialchars($n['profesionista']) ?></strong>
                         <span class="tag-rol"><?= htmlspecialchars(str_replace('_',' ',$n['rol'])) ?></span>
                     </div>

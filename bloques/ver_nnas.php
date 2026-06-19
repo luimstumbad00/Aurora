@@ -168,8 +168,8 @@ try {
                         <td>
                             <?php if ($row['tutor_nombre']): ?>
                                 <div class="tutor-info">
-                                    <strong>👤 <?= htmlspecialchars($row['tutor_nombre'] . " " . $row['tutor_ap']) ?></strong><br>
-                                    📞 <?= htmlspecialchars($row['tutor_tel'] ?? 'Sin tel.') ?>
+                                    <strong> <?= htmlspecialchars($row['tutor_nombre'] . " " . $row['tutor_ap']) ?></strong><br>
+                                     <?= htmlspecialchars($row['tutor_tel'] ?? 'Sin tel.') ?>
                                 </div>
                             <?php else: ?>
                                 <span style="color: #e74c3c; font-weight: bold;">⚠️ Requiere Tutor</span>

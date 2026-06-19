@@ -71,7 +71,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($usuario) {
-                $mensaje = "Usuario encontrado. Puede modificar sus datos. ✏️";
+                $mensaje = "Usuario encontrado. Puede modificar sus datos. ";
                 $tipoMensaje = "success";
             } else {
                 $mensaje = "Usuario no encontrado ⚠️";

@@ -177,7 +177,7 @@ foreach ($equipos as $eq) {
     <!-- ENCABEZADO -->
     <div class="card">
         <a href="dashboard.php" class="back">⬅ Dashboard</a>
-        <h1>🏥 Dashboard de Equipos Multidisciplinarios</h1>
+        <h1>Dashboard de Equipos Multidisciplinarios</h1>
         <p style="color:#7f8c8d; font-size:13px;">Gestión de equipos, asignación de profesionistas y seguimiento de casos.</p>
  
         <?php if ($mensaje): ?>
@@ -201,7 +201,7 @@ foreach ($equipos as $eq) {
                     <textarea name="descripcion" placeholder="Breve descripción del enfoque del equipo..."></textarea>
                 </div>
             </div>
-            <button type="submit" name="crear_equipo" class="btn-crear">💾 Crear Equipo</button>
+            <button type="submit" name="crear_equipo" class="btn-crear"> Crear Equipo</button>
         </form>
     </div>
  
@@ -273,7 +273,7 @@ foreach ($equipos as $eq) {
                 <?php endif; ?>
  
                 <!-- Casos asignados -->
-                <h3>👶 Casos Asignados (NNA)</h3>
+                <h3> Casos Asignados (NNA)</h3>
                 <?php if (count($detalle[$id]['casos']) > 0): ?>
                     <table class="mini">
                         <thead><tr><th>Folio</th><th>NNA</th><th>CURP</th><th>Registro</th><th></th></tr></thead>
@@ -288,7 +288,7 @@ foreach ($equipos as $eq) {
                                         <?php if ($c['curp']): ?>
                                             <a href="ver_perfil_nna.php?curp=<?= urlencode($c['curp']) ?>"
                                                style="color:#3498db; font-size:12px; font-weight:700; text-decoration:none;">
-                                                👁️ Ver
+                                                 Ver
                                             </a>
                                         <?php endif; ?>
                                     </td>

@@ -70,7 +70,7 @@ try {
             <h1 style="margin:0; color:#2c3e50;">Historial de Seguimiento</h1>
             <small style="color:#7f8c8d;"><?= htmlspecialchars(trim($nna['nombre'] . " " . $nna['prim_ap'] . " " . ($nna['seg_ap'] ?? ''))) ?></small>
         </div>
-        <a href="registrar_seguimiento.php?curp=<?= urlencode($curp_nna) ?>" class="btn-nuevo">➕ Nuevo Seguimiento</a>
+        <a href="registrar_seguimiento.php?curp=<?= urlencode($curp_nna) ?>" class="btn-nuevo">Nuevo Seguimiento</a>
     </div>
 
     <div style="margin-bottom:20px;">
@@ -84,10 +84,10 @@ try {
                     <span class="seg-area"><?= htmlspecialchars(str_replace('_', ' ', $s['area'])) ?></span>
                     <span class="seg-fecha"><?= htmlspecialchars($s['fecha_atencion']) ?></span>
                 </div>
-                <div class="seg-autor">👤 <?= htmlspecialchars($s['u_nom'] . " " . $s['u_ap']) ?></div>
+                <div class="seg-autor"> <?= htmlspecialchars($s['u_nom'] . " " . $s['u_ap']) ?></div>
                 <div class="seg-notas"><?= htmlspecialchars($s['notas_evolucion'] ?? 'Sin notas registradas') ?></div>
                 <?php if (!empty($s['archivo_adjunto_path'])): ?>
-                    <div class="seg-archivo">📎 <?= htmlspecialchars($s['archivo_adjunto_path']) ?></div>
+                    <div class="seg-archivo"> <?= htmlspecialchars($s['archivo_adjunto_path']) ?></div>
                 <?php endif; ?>
             </div>
         <?php endforeach; ?>
