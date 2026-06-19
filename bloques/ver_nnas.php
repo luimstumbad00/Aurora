@@ -7,10 +7,6 @@ if (!isset($_SESSION['usuario'])) {
 }
 
 $rolActual = $_SESSION['usuario']['rol'];
-if ($rolActual !== 'Administrador') {
-    header("Location: dashboard.php?error=acceso_denegado");
-    exit();
-}
 
 require '../config/database.php';
 

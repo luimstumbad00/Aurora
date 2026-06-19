@@ -3,10 +3,7 @@ session_start();
 require '../config/database.php';
 
 // 1. Validar sesión y rol
-if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] !== 'Administrador') {
-    header("Location: dashboard.php?error=acceso_denegado");
-    exit();
-}
+
 
 // 2. Identificar al NNA (CURP llega por GET la 1ª vez, por POST después)
 $curp_nna = $_GET['curp_nna'] ?? $_POST['curp_nna_oculto'] ?? '';

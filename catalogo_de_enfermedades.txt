@@ -1,0 +1,200 @@
+J00-0,Resfriado comun,Aguda
+J01-1,Sinusitis aguda,Aguda
+J02-2,Faringitis aguda,Aguda
+J03-3,Amigdalitis,Aguda
+J04-4,Laringitis,Aguda
+J05-5,Crup,Aguda
+J06-6,Infeccion respiratoria superior,Aguda
+J10-7,Influenza,Aguda
+J11-8,Influenza no especificada,Aguda
+J12-9,Neumonia viral,Aguda
+J13-10,Neumonia por neumococo,Aguda
+J14-11,Neumonia por Haemophilus,Aguda
+J15-12,Neumonia bacteriana,Aguda
+J18-13,Neumonia no especificada,Aguda
+H65-14,Otitis media serosa,Aguda
+H66-15,Otitis media aguda,Aguda
+H67-16,Otitis en enfermedades clasificadas,Aguda
+A08-17,Gastroenteritis viral,Aguda
+A09-18,Gastroenteritis infecciosa,Aguda
+A37-19,Tos ferina,Aguda
+A38-20,Escarlatina,Aguda
+A39-21,Meningitis meningococica,Aguda
+B01-22,Varicela,Aguda
+B05-23,Sarampion,Aguda
+B06-24,Rubeola,Aguda
+B15-25,Hepatitis A,Aguda
+B16-26,Hepatitis B,Aguda
+N39-27,Infeccion urinaria,Cronica
+K35-28,Apendicitis,Aguda
+K52-29,Colitis no infecciosa,Aguda
+L20-30,Dermatitis atopica,Cronica
+L21-31,Dermatitis seborreica,Cronica
+L22-32,Dermatitis del pañal,Cronica
+E10-33,Diabetes tipo 1,Cronica
+E11-34,Diabetes tipo 2,Cronica
+D50-35,Anemia por deficiencia de hierro,Cronica
+G40-36,Epilepsia,Cronica
+F32-37,Depresion,Cronica
+F90-38,TDAH,Cronica
+R50-39,Fiebre,Aguda
+R51-40,Dolor de cabeza,Aguda
+R56-41,Convulsiones,Aguda
+T78-42,Reacciones alergicas,Aguda
+T79-43,Complicaciones tempranas de trauma,Aguda
+J00-44,Resfriado comun,Aguda
+J01-45,Sinusitis aguda,Aguda
+J02-46,Faringitis aguda,Aguda
+J03-47,Amigdalitis,Aguda
+J04-48,Laringitis,Aguda
+J05-49,Crup,Aguda
+J06-50,Infeccion respiratoria superior,Aguda
+J10-51,Influenza,Aguda
+J11-52,Influenza no especificada,Aguda
+J12-53,Neumonia viral,Aguda
+J13-54,Neumonia por neumococo,Aguda
+J14-55,Neumonia por Haemophilus,Aguda
+J15-56,Neumonia bacteriana,Aguda
+J18-57,Neumonia no especificada,Aguda
+H65-58,Otitis media serosa,Aguda
+H66-59,Otitis media aguda,Aguda
+H67-60,Otitis en enfermedades clasificadas,Aguda
+A08-61,Gastroenteritis viral,Aguda
+A09-62,Gastroenteritis infecciosa,Aguda
+A37-63,Tos ferina,Aguda
+A38-64,Escarlatina,Aguda
+A39-65,Meningitis meningococica,Aguda
+B01-66,Varicela,Aguda
+B05-67,Sarampion,Aguda
+B06-68,Rubeola,Aguda
+B15-69,Hepatitis A,Aguda
+B16-70,Hepatitis B,Aguda
+N39-71,Infeccion urinaria,Cronica
+K35-72,Apendicitis,Aguda
+K52-73,Colitis no infecciosa,Aguda
+L20-74,Dermatitis atopica,Cronica
+L21-75,Dermatitis seborreica,Cronica
+L22-76,Dermatitis del pañal,Cronica
+E10-77,Diabetes tipo 1,Cronica
+E11-78,Diabetes tipo 2,Cronica
+D50-79,Anemia por deficiencia de hierro,Cronica
+G40-80,Epilepsia,Cronica
+F32-81,Depresion,Cronica
+F90-82,TDAH,Cronica
+R50-83,Fiebre,Aguda
+R51-84,Dolor de cabeza,Aguda
+R56-85,Convulsiones,Aguda
+T78-86,Reacciones alergicas,Aguda
+T79-87,Complicaciones tempranas de trauma,Aguda
+J00-88,Resfriado comun,Aguda
+J01-89,Sinusitis aguda,Aguda
+J02-90,Faringitis aguda,Aguda
+J03-91,Amigdalitis,Aguda
+J04-92,Laringitis,Aguda
+J05-93,Crup,Aguda
+J06-94,Infeccion respiratoria superior,Aguda
+J10-95,Influenza,Aguda
+J11-96,Influenza no especificada,Aguda
+J12-97,Neumonia viral,Aguda
+J13-98,Neumonia por neumococo,Aguda
+J14-99,Neumonia por Haemophilus,Aguda
+J15-100,Neumonia bacteriana,Aguda
+J18-101,Neumonia no especificada,Aguda
+H65-102,Otitis media serosa,Aguda
+H66-103,Otitis media aguda,Aguda
+H67-104,Otitis en enfermedades clasificadas,Aguda
+A08-105,Gastroenteritis viral,Aguda
+A09-106,Gastroenteritis infecciosa,Aguda
+A37-107,Tos ferina,Aguda
+A38-108,Escarlatina,Aguda
+A39-109,Meningitis meningococica,Aguda
+B01-110,Varicela,Aguda
+B05-111,Sarampion,Aguda
+B06-112,Rubeola,Aguda
+B15-113,Hepatitis A,Aguda
+B16-114,Hepatitis B,Aguda
+N39-115,Infeccion urinaria,Cronica
+K35-116,Apendicitis,Aguda
+K52-117,Colitis no infecciosa,Aguda
+L20-118,Dermatitis atopica,Cronica
+L21-119,Dermatitis seborreica,Cronica
+L22-120,Dermatitis del pañal,Cronica
+E10-121,Diabetes tipo 1,Cronica
+E11-122,Diabetes tipo 2,Cronica
+D50-123,Anemia por deficiencia de hierro,Cronica
+G40-124,Epilepsia,Cronica
+F32-125,Depresion,Cronica
+F90-126,TDAH,Cronica
+R50-127,Fiebre,Aguda
+R51-128,Dolor de cabeza,Aguda
+R56-129,Convulsiones,Aguda
+T78-130,Reacciones alergicas,Aguda
+T79-131,Complicaciones tempranas de trauma,Aguda
+J00-132,Resfriado comun,Aguda
+J01-133,Sinusitis aguda,Aguda
+J02-134,Faringitis aguda,Aguda
+J03-135,Amigdalitis,Aguda
+J04-136,Laringitis,Aguda
+J05-137,Crup,Aguda
+J06-138,Infeccion respiratoria superior,Aguda
+J10-139,Influenza,Aguda
+J11-140,Influenza no especificada,Aguda
+J12-141,Neumonia viral,Aguda
+J13-142,Neumonia por neumococo,Aguda
+J14-143,Neumonia por Haemophilus,Aguda
+J15-144,Neumonia bacteriana,Aguda
+J18-145,Neumonia no especificada,Aguda
+H65-146,Otitis media serosa,Aguda
+H66-147,Otitis media aguda,Aguda
+H67-148,Otitis en enfermedades clasificadas,Aguda
+A08-149,Gastroenteritis viral,Aguda
+A09-150,Gastroenteritis infecciosa,Aguda
+A37-151,Tos ferina,Aguda
+A38-152,Escarlatina,Aguda
+A39-153,Meningitis meningococica,Aguda
+B01-154,Varicela,Aguda
+B05-155,Sarampion,Aguda
+B06-156,Rubeola,Aguda
+B15-157,Hepatitis A,Aguda
+B16-158,Hepatitis B,Aguda
+N39-159,Infeccion urinaria,Cronica
+K35-160,Apendicitis,Aguda
+K52-161,Colitis no infecciosa,Aguda
+L20-162,Dermatitis atopica,Cronica
+L21-163,Dermatitis seborreica,Cronica
+L22-164,Dermatitis del pañal,Cronica
+E10-165,Diabetes tipo 1,Cronica
+E11-166,Diabetes tipo 2,Cronica
+D50-167,Anemia por deficiencia de hierro,Cronica
+G40-168,Epilepsia,Cronica
+F32-169,Depresion,Cronica
+F90-170,TDAH,Cronica
+R50-171,Fiebre,Aguda
+R51-172,Dolor de cabeza,Aguda
+R56-173,Convulsiones,Aguda
+T78-174,Reacciones alergicas,Aguda
+T79-175,Complicaciones tempranas de trauma,Aguda
+J00-176,Resfriado comun,Aguda
+J01-177,Sinusitis aguda,Aguda
+J02-178,Faringitis aguda,Aguda
+J03-179,Amigdalitis,Aguda
+J04-180,Laringitis,Aguda
+J05-181,Crup,Aguda
+J06-182,Infeccion respiratoria superior,Aguda
+J10-183,Influenza,Aguda
+J11-184,Influenza no especificada,Aguda
+J12-185,Neumonia viral,Aguda
+J13-186,Neumonia por neumococo,Aguda
+J14-187,Neumonia por Haemophilus,Aguda
+J15-188,Neumonia bacteriana,Aguda
+J18-189,Neumonia no especificada,Aguda
+H65-190,Otitis media serosa,Aguda
+H66-191,Otitis media aguda,Aguda
+H67-192,Otitis en enfermedades clasificadas,Aguda
+A08-193,Gastroenteritis viral,Aguda
+A09-194,Gastroenteritis infecciosa,Aguda
+A37-195,Tos ferina,Aguda
+A38-196,Escarlatina,Aguda
+A39-197,Meningitis meningococica,Aguda
+B01-198,Varicela,Aguda
+B05-199,Sarampion,Aguda

@@ -9,16 +9,26 @@ if (!isset($_SESSION['usuario'])) {
 
 require '../config/database.php';
 
-// 2. Obtener la CURP (Viene por GET la primera vez, por POST después)
+// 2. Obtener las CURP (Detectar si es NNA o Tutor)
 $curp_nna   = $_GET['curp_nna'] ?? $_POST['curp_nna_oculto'] ?? null;
 $curp_tutor = $_GET['curp_tutor'] ?? $_POST['curp_tutor_oculto'] ?? null;
-$curp_final = $curp_nna ? $curp_nna : $curp_tutor;
+
+// Determinar el tipo de paciente y su CURP final
+$tipo_paciente = null;
+$curp_final = null;
+
+if (!empty($curp_nna)) {
+    $tipo_paciente = 'NNA';
+    $curp_final = $curp_nna;
+} elseif (!empty($curp_tutor)) {
+    $tipo_paciente = 'Tutor';
+    $curp_final = $curp_tutor;
+}
 
 $mensaje = "";
 $tipoMensaje = "";
 
 // 3. Cargar el catálogo de enfermedades (CIE-10)
-//    cat_enfermedad tiene: id_enfermedad, codigo_cie, nombre
 $catalogo = [];
 try {
     $catalogo = $pdo->query("
@@ -27,7 +37,6 @@ try {
         ORDER BY nombre ASC
     ")->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    // En producción: error_log($e->getMessage());
     $catalogo = [];
 }
 
@@ -39,42 +48,67 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $curp_final) {
     $observaciones    = strtoupper(trim($_POST['observaciones'] ?? ''));
 
     try {
-        // Resolver el id_nna a partir de la CURP (nna_enfermedad usa id_nna)
-        $stmtNna = $pdo->prepare("SELECT id_nna FROM nna WHERE curp = :curp LIMIT 1");
-        $stmtNna->execute([':curp' => $curp_final]);
-        $id_nna = $stmtNna->fetchColumn();
-
-        if (!$id_nna) {
-            $mensaje = "No se encontró un NNA con esa CURP ⚠️";
-            $tipoMensaje = "error";
-        } elseif ($id_enfermedad <= 0) {
+        if ($id_enfermedad <= 0) {
             $mensaje = "Debes seleccionar un padecimiento ⚠️";
             $tipoMensaje = "error";
         } else {
-            $query_insert = "
-                INSERT INTO nna_enfermedad (
-                    id_nna, id_enfermedad, bajo_tratamiento, observaciones
-                ) VALUES (
-                    :id_nna, :id_enfermedad, :bajo_tratamiento, :observaciones
-                )
-            ";
+            // Lógica dividida dependiendo de si es NNA o Tutor
+            if ($tipo_paciente === 'NNA') {
+                
+                // Buscar ID del NNA
+                $stmtId = $pdo->prepare("SELECT id_nna FROM nna WHERE curp = :curp LIMIT 1");
+                $stmtId->execute([':curp' => $curp_final]);
+                $id_persona = $stmtId->fetchColumn();
+
+                if (!$id_persona) {
+                    throw new Exception("No se encontró un NNA con esa CURP.");
+                }
+
+                // Insertar en nna_enfermedad
+                $query_insert = "
+                    INSERT INTO nna_enfermedad (id_nna, id_enfermedad, bajo_tratamiento, observaciones) 
+                    VALUES (:id_persona, :id_enfermedad, :bajo_tratamiento, :observaciones)
+                ";
+
+            } else {
+                
+                // Buscar ID del Tutor
+                $stmtId = $pdo->prepare("SELECT id_tutor FROM tutor WHERE curp_tutor = :curp LIMIT 1");
+                $stmtId->execute([':curp' => $curp_final]);
+                $id_persona = $stmtId->fetchColumn();
+
+                if (!$id_persona) {
+                    throw new Exception("No se encontró un Tutor con esa CURP.");
+                }
+
+                // Insertar en tutor_enfermedad
+                $query_insert = "
+                    INSERT INTO tutor_enfermedad (id_tutor, id_enfermedad, bajo_tratamiento, observaciones) 
+                    VALUES (:id_persona, :id_enfermedad, :bajo_tratamiento, :observaciones)
+                ";
+            }
+
+            // Ejecutar la inserción correspondiente
             $stmt = $pdo->prepare($query_insert);
             $stmt->execute([
-                ':id_nna'           => $id_nna,
+                ':id_persona'       => $id_persona,
                 ':id_enfermedad'    => $id_enfermedad,
                 ':bajo_tratamiento' => $bajo_tratamiento,
                 ':observaciones'    => $observaciones !== '' ? $observaciones : null
             ]);
 
-            $mensaje = "Padecimiento registrado correctamente ✅";
+            $mensaje = "Padecimiento registrado correctamente al $tipo_paciente ✅";
             $tipoMensaje = "success";
         }
+    } catch (Exception $e) {
+        $mensaje = $e->getMessage() . " ⚠️";
+        $tipoMensaje = "error";
     } catch (PDOException $e) {
-        // PK compuesta (id_nna, id_enfermedad): si ya existe, es duplicado
-        if (strpos($e->getMessage(), 'nna_enfermedad_pkey') !== false) {
-            $mensaje = "Este padecimiento ya está registrado para el NNA ⚠️";
+        // Validación de llaves primarias duplicadas para ambas tablas
+        if (strpos($e->getMessage(), 'nna_enfermedad_pkey') !== false || strpos($e->getMessage(), 'tutor_enfermedad_pkey') !== false) {
+            $mensaje = "Este padecimiento ya está registrado para el $tipo_paciente ⚠️";
         } else {
-            $mensaje = "Error al registrar el padecimiento ❌";
+            $mensaje = "Error en la base de datos al registrar el padecimiento ❌";
         }
         $tipoMensaje = "error";
     }
@@ -110,7 +144,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $curp_final) {
 
     <div class="info-persona">
         <?php if ($curp_final): ?>
-            Paciente: <strong style="color: #1a2a6c;"><?= htmlspecialchars($curp_final) ?></strong>
+            Paciente (<?= $tipo_paciente ?>): <strong style="color: #1a2a6c;"><?= htmlspecialchars($curp_final) ?></strong>
         <?php else: ?>
             <span style="color: #e74c3c; font-weight: bold;">⚠️ Error: No se seleccionó ningún paciente.</span>
         <?php endif; ?>

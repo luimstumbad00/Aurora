@@ -184,19 +184,16 @@ try {
         <a href="ver_usuarios.php" class="nav-item">Ver Usuarios</a>
         <a href="ver_nnas.php"     class="nav-item">Ver NNA's</a>
 
-        <?php if ($rol === 'Administrador'): ?>
-            <a href="agusuario.php"        class="nav-item"> Agregar Usuario</a>
-            <a href="modificar_usuario.php" class="nav-item"> Editar Usuario</a>
-            <a href="agregar_nna.php"      class="nav-item"> Agregar NNA</a>
-            <a href="ver_tutores.php"      class="nav-item"> Ver Tutores</a>
-            <a href="asignar_tutor.php"    class="nav-item"> Agregar Tutor</a>
-            <a href="ver_equipos.php" class="nav-item"> Equipos</a>
-        <?php endif; ?>
+        <a href="agusuario.php"        class="nav-item"> Agregar Usuario</a>
+        <a href="modificar_usuario.php" class="nav-item"> Editar Usuario</a>
+        <a href="agregar_nna.php"      class="nav-item"> Agregar NNA</a>
+        <a href="ver_tutores.php"      class="nav-item"> Ver Tutores</a>
+        <a href="asignar_tutor.php"    class="nav-item"> Agregar Tutor</a>
+        <a href="ver_equipos.php"      class="nav-item"> Equipos</a>
 
         <a href="logout.php" class="nav-item logout"> Cerrar Sesión</a>
     </div>
 
-    <!-- ===== MIS CASOS (Seguimiento multidisciplinario) ===== -->
     <div class="casos-card">
         <h3> Mis Casos</h3>
         <?php if (count($mis_casos) > 0): ?>
